@@ -10,11 +10,11 @@ Files:   /etc/stompbox/config.json   button settings (edited through the page)
          /etc/stompbox/hotspot.conf  hotspot name / password / country
 Web:     http://192.168.4.1  (hotspot)  or  http://<pi-ip>  (any network the Pi joins)
 """
-import json, os, re, socket, subprocess, threading, time, shutil
+import json, os, re, shlex, socket, subprocess, threading, time, shutil
 from collections import deque
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 ETC = os.environ.get("STOMPBOX_ETC", "/etc/stompbox")
 CONFIG_PATH = os.environ.get("STOMPBOX_CONFIG", os.path.join(ETC, "config.json"))
 PEDAL_PATH = os.path.join(ETC, "pedal.json")
@@ -699,14 +699,74 @@ ENGINE = None
 
 
 # ---------------------------------------------------------------------- Wi-Fi
-def hotspot_ssid():
+HOTSPOT_DEFAULTS = {"SSID": "STOMPBOX-CTRL", "PASSWORD": "stompbox123", "COUNTRY": "IE"}
+
+
+def read_hotspot():
+    """hotspot.conf (shell format, sourced by stompbox-ap.sh) -> dict."""
+    conf = dict(HOTSPOT_DEFAULTS)
     try:
-        m = re.search(r'^SSID="?([^"\n]*)"?', open(HOTSPOT_PATH).read(), re.M)
-        if m and m.group(1):
-            return m.group(1)
+        with open(HOTSPOT_PATH) as f:
+            lines = f.read().splitlines()
     except OSError:
-        pass
-    return "STOMPBOX-CTRL"
+        lines = []
+    for line in lines:
+        k, sep, v = line.strip().partition("=")
+        if sep and k in conf:
+            try:
+                parts = shlex.split(v)
+                conf[k] = parts[0] if parts else ""
+            except ValueError:
+                pass
+    return conf
+
+
+def write_hotspot(ssid, password, country):
+    os.makedirs(ETC, exist_ok=True)
+    tmp = HOTSPOT_PATH + ".tmp"
+    with open(tmp, "w") as f:
+        f.write("# STOMPBOX hotspot - change these, then: sudo systemctl restart stompbox-ap\n")
+        for k, v in (("SSID", ssid), ("PASSWORD", password), ("COUNTRY", country)):
+            f.write(f"{k}={shlex.quote(v)}\n")
+    os.chmod(tmp, 0o600)
+    os.replace(tmp, HOTSPOT_PATH)
+
+
+def validate_hotspot(d, current):
+    """Page request {ssid, password?, open?} -> (ssid, password). Omitted password = keep."""
+    ssid = str(d.get("ssid", "")).strip()
+    if not 1 <= len(ssid.encode()) <= 32:
+        raise ValueError("hotspot name must be 1-32 characters")
+    if any(ord(c) < 32 for c in ssid):
+        raise ValueError("hotspot name has invalid characters")
+    if d.get("open"):
+        return ssid, ""
+    pw = d.get("password")
+    if pw is None or pw == "":
+        pw = current
+        if not pw:
+            raise ValueError("enter a password (8-63 characters) or choose an open network")
+    pw = str(pw)
+    if not 8 <= len(pw) <= 63 or any(ord(c) < 32 or ord(c) > 126 for c in pw):
+        raise ValueError("hotspot password must be 8-63 plain characters")
+    return ssid, pw
+
+
+def hotspot_ssid():
+    return read_hotspot()["SSID"]
+
+
+def apply_hotspot(d):
+    conf = read_hotspot()
+    ssid, pw = validate_hotspot(d, conf["PASSWORD"])
+    write_hotspot(ssid, pw, conf["COUNTRY"])
+    log(f"hotspot settings changed: {ssid} ({'open' if not pw else 'password protected'}) – restarting hotspot")
+
+    def restart():
+        time.sleep(2)                       # let the reply reach the phone first
+        run_cmd(["systemctl", "restart", "stompbox-ap.service"], 90)
+    threading.Thread(target=restart, daemon=True).start()
+    return ssid
 
 
 class Wifi:
@@ -937,6 +997,9 @@ class Handler(BaseHTTPRequestHandler):
             self._json(default_config())
         elif path == "/api/wifi":
             self._json(WIFI.state())
+        elif path == "/api/hotspot":
+            h = read_hotspot()
+            self._json({"ssid": h["SSID"], "open": not h["PASSWORD"], "country": h["COUNTRY"]})
         elif path == "/api/status":
             with MIDI.lock:
                 effects = {e: bool(MIDI.cc.get(cc, d) & 64) for e, (cc, d) in EFFECTS.items()}
@@ -965,6 +1028,8 @@ class Handler(BaseHTTPRequestHandler):
                 d = self._body()
                 ENGINE.simulate(int(d["button"]), bool(d["down"]))
                 self._json({"ok": True})
+            elif self.path == "/api/hotspot":
+                self._json({"ok": True, "ssid": apply_hotspot(self._body())})
             elif self.path == "/api/wifi/scan":
                 self._json({"ok": True, "networks": WIFI.scan()})
             elif self.path == "/api/wifi/connect":

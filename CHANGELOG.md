@@ -7,6 +7,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/), versions follow `VERSIO
 
 _Nothing yet._
 
+## [1.3.0] – 2026-11-04
+
+Brings the Raspberry Pi and ESP32-C3 versions closer together.
+
+### Added
+- **Hotspot name and password on the settings page** (Wi-Fi → Hotspot), on both platforms; option for an open network. API `GET/POST /api/hotspot`.
+- ESP32-C3: **joins any saved Wi-Fi network in range** whenever the connection has been lost for 30 s (before: only the strongest one at start-up), like the Pi.
+- ESP32-C3: **16 unit tests** run on a computer (`pio test -e native`): the same footswitch scenarios as the Pi tests, settings validation, and the BLE-MIDI parser checked against packets recorded from the pedal.
+- Pi: tests for the hotspot settings file (6 tests).
+
+### Changed
+- ESP32-C3: BLE-MIDI parsing moved to `src/blemidi.h` so it can be tested.
+- Pi: `hotspot.conf` is read with proper shell-quoting rules (names with spaces or quotes work).
+
 ## [1.2.0] – 2026-11-04
 
 ### Added

@@ -90,6 +90,7 @@ select:focus, input:focus, button:focus-visible { outline: 2px solid var(--accen
 .op { margin-top: 10px; font-size: .88rem; }
 .op.working { color: var(--accent); } .op.ok { color: var(--ok); } .op.error { color: var(--bad); }
 .actions-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.check { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: .9rem; margin-right: auto; }
 .tag { font: .7rem var(--mono); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; color: var(--muted); white-space: nowrap; }
 .tag.on { color: var(--accent); border-color: var(--accent); }
 .tag.ok { color: var(--ok); border-color: var(--ok); }
@@ -135,6 +136,16 @@ footer { color: var(--muted); font-size: .75rem; text-align: center; }
       <div class="nets" id="wifi-saved"></div>
     </div>
     <p class="op" id="wifi-op" hidden></p>
+    <h2 style="margin-top:16px">Hotspot</h2>
+    <div class="join">
+      <input id="hs-ssid" maxlength="32" placeholder="Hotspot name" aria-label="Hotspot name" autocomplete="off">
+      <input id="hs-pass" type="password" maxlength="63" placeholder="New password (optional)" aria-label="New hotspot password" autocomplete="new-password">
+    </div>
+    <div class="actions-row" style="align-items:center">
+      <label class="check"><input type="checkbox" id="hs-open"> Open network (no password)</label>
+      <button class="small-btn" id="hs-save" type="button">Save hotspot</button>
+    </div>
+    <p class="op" id="hs-op" hidden></p>
     <p class="hint">The controller has one Wi-Fi radio, so when it joins a network the hotspot moves to that network's channel. If you're on the hotspot, your phone may drop for up to 30 seconds: rejoin the hotspot and the result shows here. From then on the page is also reachable on that network at the address shown above.</p>
   </section>
 
@@ -391,6 +402,34 @@ $("#wifi-other").onclick = () => {
   row.querySelector("input").focus();
 };
 loadWifi(); setInterval(loadWifi, 4000);
+
+// hotspot name / password (two taps: everyone on the hotspot gets disconnected)
+async function loadHotspot() {
+  try {
+    const h = await (await fetch("/api/hotspot")).json();
+    $("#hs-ssid").value = h.ssid; $("#hs-open").checked = !!h.open;
+    $("#hs-pass").disabled = !!h.open;
+  } catch {}
+}
+$("#hs-open").onchange = () => { $("#hs-pass").disabled = $("#hs-open").checked; };
+$("#hs-save").onclick = async () => {
+  const b = $("#hs-save"), op = $("#hs-op");
+  if (!b.dataset.armed) {
+    b.dataset.armed = 1; b.textContent = "Tap again: devices on the hotspot disconnect";
+    setTimeout(() => { delete b.dataset.armed; b.textContent = "Save hotspot"; }, 5000);
+    return;
+  }
+  delete b.dataset.armed; b.textContent = "Save hotspot";
+  const body = {ssid: $("#hs-ssid").value, open: $("#hs-open").checked};
+  if ($("#hs-pass").value) body.password = $("#hs-pass").value;
+  try {
+    const j = await post("/api/hotspot", body);
+    op.hidden = false; op.className = "op ok";
+    op.textContent = `Saved. The hotspot restarts as “${j.ssid}” – if you're on it, join it again${body.open ? "" : (body.password ? " with the new password" : "")}.`;
+    $("#hs-pass").value = "";
+  } catch (e) { op.hidden = false; op.className = "op error"; op.textContent = e.message; }
+};
+loadHotspot();
 
 // ------------------------------------------------------------- Bluetooth
 const BT_STATE = {connected: "connected", connecting: "connecting… (is it switched on?)",

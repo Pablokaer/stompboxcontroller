@@ -15,10 +15,11 @@ _The settings page on a phone (example data – a second pedal and a WIDI adapte
 > **Two hardware options.** This README covers the **Raspberry Pi Zero W**
 > version (tested on hardware). An **ESP32-C3** version with the same features
 > and the same settings page lives in [`esp32-c3/`](esp32-c3) – cheaper, starts in
-> seconds, installed from a browser; compiled but not yet tested on hardware.
+> seconds, installed from a browser; its logic is tested on a computer, but it
+> has not yet been tested on a real board.
 > See [esp32-c3/README.md](esp32-c3/README.md).
 
-> **Current version: 1.2.0** – see [CHANGELOG.md](CHANGELOG.md). This README is
+> **Current version: 1.3.0** – see [CHANGELOG.md](CHANGELOG.md). This README is
 > updated with every change to the project (see [Keeping this README current](#keeping-this-readme-current)).
 
 ---
@@ -63,7 +64,8 @@ _The settings page on a phone (example data – a second pedal and a WIDI adapte
   while held, turn an effect on / off, all effects on / off, next / previous
   preset, go to a specific preset.
 - **Own Wi-Fi network** (`STOMPBOX-CTRL`). Joining it opens the settings page
-  automatically (captive portal), like hotel Wi-Fi.
+  automatically (captive portal), like hotel Wi-Fi. Its name and password can be
+  changed on the settings page.
 - **Joins other Wi-Fi networks** from the settings page; the page is then also
   reachable on that network at the Pi's IP address.
 - **Keeps the pedal's effect types:** switching an effect off and on never
@@ -272,7 +274,7 @@ hotspot appears a little after power-on.
 | Section | What it does |
 |---|---|
 | **Pedal · Bluetooth** | The device in use (name, address, connection state), the **startup device**, and which effects are on now. **Find devices** lists nearby Bluetooth MIDI devices: tap one for **Connect now** or **Connect + always at startup**. **Saved devices**: Connect now, Use at startup, Forget (tap twice). See [Bluetooth devices](#bluetooth-devices). |
-| **Wi-Fi** | The network the Pi is on and the page's address there; hotspot status. **Find networks** lists nearby networks – tap one, enter the password, Connect. **Hidden network…** for networks that don't broadcast their name. **Saved networks**: reconnect or forget (tap twice). |
+| **Wi-Fi** | The network the Pi is on and the page's address there; hotspot status. **Find networks** lists nearby networks – tap one, enter the password, Connect. **Hidden network…** for networks that don't broadcast their name. **Saved networks**: reconnect or forget (tap twice). **Hotspot**: change the hotspot's name and password, or make it an open network (tap Save twice – devices on the hotspot disconnect and must join again; leave the password empty to keep the current one). |
 | **Footswitch profile** | **4 buttons** or **5 buttons**. Each profile keeps its own settings; the active one is used. |
 | **Buttons** | Per footswitch: GPIO pin, **Press** action, **Hold** action. |
 | **Combos** | Pick 2+ footswitches and the action they trigger when pressed together. |
@@ -356,9 +358,9 @@ Notes:
   `http://` request is redirected to the page, so phones open it automatically.
   `https://` addresses can't be redirected (browsers block that by design).
   Devices on the hotspot can't reach the network the Pi is connected to.
-- **Change the hotspot name / password:** re-run the installer with
-  `STOMPBOX_SSID` / `STOMPBOX_PASSWORD`, or edit `/etc/stompbox/hotspot.conf` and run
-  `sudo systemctl restart stompbox-ap`.
+- **Change the hotspot name / password:** on the settings page (Wi-Fi → Hotspot),
+  or re-run the installer with `STOMPBOX_SSID` / `STOMPBOX_PASSWORD`, or edit
+  `/etc/stompbox/hotspot.conf` and run `sudo systemctl restart stompbox-ap`.
 - The page has **no login**: anyone on the hotspot (with its password) or on the
   same network as the Pi can change the settings.
 
@@ -484,11 +486,13 @@ stompboxcontroller/
 | POST | `/api/pedal/forget` | forget the device in use |
 | GET | `/api/wifi` | current network, hotspot, saved networks, last operation |
 | POST | `/api/wifi/scan` · `/connect` · `/up` · `/forget` | scan; join `{ssid,password,hidden}`; reconnect / forget `{name}` |
+| GET / POST | `/api/hotspot` | hotspot name and whether it's open; POST `{"ssid":"…","password":"…"}` or `{"ssid":"…","open":true}` (omit password = keep) – restarts the hotspot |
 
-**Tests** (any computer with Python 3, no Pi needed):
+**Tests** – no Pi or board needed:
 
 ```bash
-python3 -m unittest discover -s tests -v
+python3 -m unittest discover -s tests -v      # Raspberry Pi version (24 tests)
+cd esp32-c3 && pio test -e native              # ESP32-C3 firmware logic (16 tests)
 ```
 
 **Developing on a Pi:** edit, then `sudo ./install.sh` from your checkout to deploy.

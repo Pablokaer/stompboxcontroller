@@ -4,7 +4,7 @@
 // =============================================================================
 #pragma once
 
-#define STOMPBOX_VERSION "1.2.0"
+#define STOMPBOX_VERSION "1.3.0"
 #define STOMPBOX_PLATFORM "esp32c3"
 
 // ---- Footswitch pins (GPIO numbers) ------------------------------------------
@@ -21,7 +21,7 @@
 #define BOOT_BUTTON_PIN 9         // hold 10 s while running = factory reset
 
 // ---- Hotspot defaults (used until changed) -----------------------------------
-#define HOTSPOT_SSID "STOMPBOX-CTRL"
+#define HOTSPOT_SSID "STOMPBOX-CTRL"           // can be changed on the settings page
 #define HOTSPOT_PASSWORD "stompbox123"   // 8-63 characters, "" = open network
 #define HOTSPOT_MAX_CLIENTS 4
 #define MDNS_NAME "stompbox"             // http://stompbox.local on other networks

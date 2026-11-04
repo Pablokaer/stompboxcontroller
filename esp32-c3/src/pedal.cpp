@@ -4,6 +4,7 @@
 #include <NimBLEDevice.h>
 #include <mutex>
 #include "common.h"
+#include "blemidi.h"
 
 struct Dev { String mac, name; uint8_t type; };   // type: BLE_ADDR_PUBLIC / BLE_ADDR_RANDOM
 
@@ -76,27 +77,10 @@ static void resetMidiState() {
   program = -1;
 }
 
-// BLE-MIDI packet: header, then [timestamp] [status] data… (running status allowed)
+// incoming MIDI from the pedal keeps our copy of its state current
 static void onNotify(NimBLERemoteCharacteristic*, uint8_t* d, size_t n, bool) {
-  if (n < 3 || !(d[0] & 0x80)) return;
-  uint8_t status = 0;
-  size_t i = 1;
   std::lock_guard<std::mutex> lock(midiMtx);
-  while (i < n) {
-    if (d[i] & 0x80) {                      // timestamp byte
-      if (++i >= n) break;
-      if (d[i] & 0x80) {
-        status = d[i++];
-        if (status == 0xF0) { while (i < n && d[i] != 0xF7) i++; i++; status = 0; continue; }   // skip SysEx
-      }
-    }
-    uint8_t type = status & 0xF0;
-    size_t need = (type == 0xC0 || type == 0xD0) ? 1 : (status ? 2 : 0);
-    if (!need || i + need > n) break;
-    if (type == 0xB0) cc[d[i] & 0x7F] = d[i + 1] & 0x7F;
-    else if (type == 0xC0) program = d[i] & 0x7F;
-    i += need;
-  }
+  parseBleMidi(d, n, [](uint8_t c, uint8_t v) { cc[c] = v; }, [](uint8_t p) { program = p; });
 }
 
 static bool send3(uint8_t a, uint8_t b, uint8_t c, size_t len) {

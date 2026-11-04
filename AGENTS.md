@@ -9,7 +9,8 @@ Applies to everyone – people and AI assistants (Claude, Copilot, …).
    reflected in the matching section. The README must always describe the
    current state of `main`.
 2. **Add an entry to `CHANGELOG.md`** under `[Unreleased]` (Added / Changed / Fixed / Removed).
-3. **Run the tests:** `python3 -m unittest discover -s tests -v`. Add tests for new button logic.
+3. **Run the tests:** `python3 -m unittest discover -s tests -v` (Pi) and
+   `cd esp32-c3 && pio test -e native` (ESP32-C3). Add tests for new logic on both.
 4. **Keep `install.sh` safe to re-run:** it must only install what's missing,
    never overwrite user settings in `/etc/stompbox/` (`config.json`, `pedal.json`,
    `hotspot.conf`), and migrate older setups instead of breaking them.

@@ -4,10 +4,12 @@ Everything specific to running the STOMPBOX Controller on an **ESP32-C3** board
 instead of a Raspberry Pi. Same features, same settings page, same MIDI
 commands – as firmware for a ~€4 board that starts in about 2 seconds.
 
-> **Status: compiles, not yet tested on hardware.** The firmware builds cleanly
-> (version 1.2.0). The logic is a direct port of the Raspberry Pi version, which
-> is tested on hardware. Until someone confirms it on a real ESP32-C3 with the
-> pedal, treat it as a first test release – see [Testing checklist](#testing-checklist).
+> **Status: logic tested on a computer, not yet tested on a real board.** The
+> firmware (version 1.3.0) builds cleanly, and its footswitch engine, settings
+> validation and Bluetooth MIDI parser pass 16 unit tests – the same scenarios as
+> the Raspberry Pi version, which is tested on hardware with the pedal. Until
+> someone confirms it on a real ESP32-C3, treat it as a first test release – see
+> [Testing checklist](#testing-checklist).
 
 For the hardware shared with the Pi version (footswitches, MIDI map, how the
 buttons behave), see the [main README](../README.md).
@@ -38,6 +40,7 @@ buttons behave), see the [main README](../README.md).
 | | Raspberry Pi Zero W | ESP32-C3 |
 |---|---|---|
 | Hardware tested with the pedal | ✅ Yes | ❌ Not yet |
+| Automated tests of the logic | ✅ 24 | ✅ 16 (same footswitch scenarios) |
 | Start-up time | ~2.5 minutes | ~2 seconds |
 | Price | ~€15–20 + SD card | ~€3–6 |
 | Safe to unplug any time | SD card can get corrupted | ✅ Yes |
@@ -45,6 +48,8 @@ buttons behave), see the [main README](../README.md).
 | Updates | `sudo stompbox-update` | Upload a file on the settings page (`/update`) |
 | Settings page, hotspot, captive portal | ✅ | ✅ Same page |
 | Joins other Wi-Fi networks | ✅ | ✅ |
+| Rejoins any saved network in range | ✅ | ✅ (after 30 s without a connection) |
+| Hotspot name / password from the settings page | ✅ | ✅ |
 | Bluetooth device manager | ✅ | ✅ |
 | Command line (`stomp`), SSH, logs | ✅ | ❌ (activity log on the page; USB serial console) |
 | Phones with hard-coded DNS redirected to the page | ✅ | ❌ (they need `http://192.168.4.1`) |
@@ -137,8 +142,12 @@ Differences on the ESP32-C3:
 - The page footer shows the version and `esp32c3`.
 - The hotspot keeps running when the board joins another network; it moves to
   that network's channel (one radio, like the Pi Zero).
-- The hotspot name and password are set in `include/config.h` (defaults
-  `STOMPBOX-CTRL` / `stompbox123`). Changing them means building the firmware yourself.
+- The hotspot name and password can be changed on the settings page (Wi-Fi →
+  Hotspot). The defaults (`STOMPBOX-CTRL` / `stompbox123`) come from `include/config.h`
+  and return after a [factory reset](#factory-reset).
+- Saved Wi-Fi networks: at start-up, and whenever the connection has been lost for
+  30 seconds, the board joins the strongest saved network in range (retrying less
+  often, up to every 5 minutes, while none is found).
 
 ## Updating
 
@@ -165,7 +174,7 @@ All board-specific values are in [`include/config.h`](include/config.h):
 | `ALLOWED_PINS` | `{0, 1, 3, 4, 5, 6, 7, 10, 20, 21}` | your board has other free pins |
 | `STATUS_LED_PIN` / `STATUS_LED_ACTIVE_LOW` | `8` / `1` | the LED is elsewhere (e.g. an RGB LED on DevKitM-1 is GPIO 8 but needs a different driver) |
 | `BOOT_BUTTON_PIN` | `9` | almost never |
-| `HOTSPOT_SSID` / `HOTSPOT_PASSWORD` | `STOMPBOX-CTRL` / `stompbox123` | you want another name/password |
+| `HOTSPOT_SSID` / `HOTSPOT_PASSWORD` | `STOMPBOX-CTRL` / `stompbox123` | you want other **defaults** (they can also be changed on the page) |
 
 Then build and flash from source (Option C).
 
@@ -186,14 +195,29 @@ pio run
   - `stompbox-esp32c3-app.bin` – the app only, for updates over Wi-Fi.
 - Pinned versions: Espressif32 platform 6.9.0 (Arduino core), NimBLE-Arduino 1.4.2, ArduinoJson 7.2.1.
 
+**Tests on the computer** (no board needed):
+
+```bash
+cd esp32-c3
+pio test -e native
+```
+
+They compile the real `settings.cpp` and `engine.cpp` with small Arduino
+stand-ins (`test/stubs/`) and run 16 tests: the same footswitch scenarios as the
+Raspberry Pi tests (tap, hold, on-while-held, combo, effect-type bits, real pin
+press, stuck pin at start), settings validation, and the BLE-MIDI parser with
+packets recorded from the JME STOMPBOX. Not covered: Bluetooth, Wi-Fi and the
+web server – those need a real board (see the testing checklist).
+
 ## How it works
 
 | File | What it does |
 |---|---|
 | `src/main.cpp` | Start-up, status LED, factory reset |
-| `src/pedal.cpp` | Bluetooth LE MIDI client (NimBLE): saved devices, startup device, automatic JME STOMPBOX search, reconnecting, BLE-MIDI packets in/out, current effect values |
+| `src/pedal.cpp` | Bluetooth LE MIDI client (NimBLE): saved devices, startup device, automatic JME STOMPBOX search, reconnecting, sending MIDI, current effect values |
+| `src/blemidi.h` | BLE-MIDI packet parser (unit-tested) |
 | `src/engine.cpp` | Footswitches: debounce, press / hold / momentary / combos – a port of the Pi's engine – and the actions |
-| `src/net.cpp` | Hotspot + Wi-Fi client, DNS captive portal, mDNS, web server with the same JSON API as the Pi, Wi-Fi management, firmware update page |
+| `src/net.cpp` | Hotspot + Wi-Fi client, hotspot settings, rejoining saved networks, DNS captive portal, mDNS, web server with the same JSON API as the Pi, Wi-Fi management, firmware update page |
 | `src/settings.cpp` | Settings format and validation (same JSON as the Pi), log, file helpers |
 | `include/config.h` | Board pins and defaults |
 
@@ -228,6 +252,8 @@ README can be updated):
 - [ ] Changing a preset on the pedal shows the new preset number on the page.
 - [ ] Joining a home network from the page works; `http://stompbox.local` opens.
 - [ ] Footswitch response while the hotspot is in use feels instant (Wi-Fi and Bluetooth share the radio).
+- [ ] Changing the hotspot name/password on the page works; the new name appears.
+- [ ] Switching the home router off and on: the board rejoins by itself.
 - [ ] Firmware update via `/update` keeps settings.
 - [ ] Factory reset (BOOT 10 s) works.
 
@@ -242,6 +268,7 @@ esp32-c3/
 ├── scripts/             embed the shared page, write release binaries
 ├── release/             ready-to-flash firmware (full + update)
 ├── flasher/             browser flasher page (ESP Web Tools) + manifest
+├── test/                unit tests run on the computer (pio test -e native) + Arduino stand-ins
 └── wiring/              SuperMini wiring diagram (SVG + PNG)
 ```
 

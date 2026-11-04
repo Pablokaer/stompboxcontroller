@@ -62,6 +62,25 @@ static void rememberNet(const String& ssid, const String& pass) {
   saveNets();
 }
 
+// ------------------------------------------------------- hotspot settings
+static void applyHotspotTask(void*) {
+  delay(1500);                                   // let the reply reach the phone first
+  int ch = WiFi.status() == WL_CONNECTED ? WiFi.channel() : 6;
+  WiFi.softAP(apSsid.c_str(), apPass.length() ? apPass.c_str() : nullptr, ch, 0, HOTSPOT_MAX_CLIENTS);
+  logf("hotspot restarted as %s", apSsid.c_str());
+  vTaskDelete(nullptr);
+}
+
+static void handleHotspotGet() {
+  JsonDocument d;
+  d["ssid"] = apSsid; d["open"] = apPass.length() == 0; d["country"] = nullptr;
+  String out;
+  serializeJson(d, out);
+  server.send(200, "application/json", out);
+}
+
+static void handleHotspotPost();   // below (needs the JSON helpers)
+
 // ------------------------------------------------------------- Wi-Fi
 static bool joinAndWait(const String& ssid, const String& pass, uint32_t ms) {
   WiFi.disconnect(false, false);
@@ -75,24 +94,44 @@ static bool joinAndWait(const String& ssid, const String& pass, uint32_t ms) {
   return false;
 }
 
-// at start: join the strongest saved network that is in range
-static void autoJoinTask(void*) {
+// Join the strongest saved network in range. Returns true when connected.
+static bool joinBestSaved() {
   std::vector<Net> copy;
   { std::lock_guard<std::mutex> lock(netMtx); copy = nets; }
-  if (copy.size()) {
-    int n = WiFi.scanNetworks(false, false);
-    String best; int bestRssi = -1000; String bestPass;
-    for (int i = 0; i < n; i++)
-      for (auto& s : copy)
-        if (WiFi.SSID(i) == s.ssid && WiFi.RSSI(i) > bestRssi) { best = s.ssid; bestRssi = WiFi.RSSI(i); bestPass = s.pass; }
-    WiFi.scanDelete();
-    if (best.length()) {
-      logf("joining %s", best.c_str());
-      if (joinAndWait(best, bestPass, 20000)) logf("on %s - page at http://%s", best.c_str(), WiFi.localIP().toString().c_str());
-      else logf("could not join %s", best.c_str());
-    }
+  if (copy.empty()) return false;
+  int n = WiFi.scanNetworks(false, false);
+  String best, bestPass;
+  int bestRssi = -1000;
+  for (int i = 0; i < n; i++)
+    for (auto& s : copy)
+      if (WiFi.SSID(i) == s.ssid && WiFi.RSSI(i) > bestRssi) { best = s.ssid; bestRssi = WiFi.RSSI(i); bestPass = s.pass; }
+  WiFi.scanDelete();
+  if (!best.length()) return false;
+  logf("joining %s", best.c_str());
+  if (joinAndWait(best, bestPass, 20000)) {
+    logf("on %s - page at http://%s", best.c_str(), WiFi.localIP().toString().c_str());
+    return true;
   }
-  vTaskDelete(nullptr);
+  logf("could not join %s", best.c_str());
+  return false;
+}
+
+// Like the Pi (NetworkManager): at start, and whenever the connection has been
+// lost for 30 s, join any saved network that is in range.
+static void wifiWatchTask(void*) {
+  joinBestSaved();
+  uint32_t lostSince = 0, wait = 30000;
+  for (;;) {
+    delay(5000);
+    if (WiFi.status() == WL_CONNECTED || opBusy) { lostSince = 0; wait = 30000; continue; }
+    bool haveSaved;
+    { std::lock_guard<std::mutex> lock(netMtx); haveSaved = !nets.empty(); }
+    if (!haveSaved) continue;
+    if (!lostSince) lostSince = millis();
+    if (millis() - lostSince < wait) continue;
+    if (!joinBestSaved()) wait = min<uint32_t>(wait * 2, 300000);   // back off up to 5 min
+    lostSince = millis();
+  }
 }
 
 struct JoinReq { String ssid, pass; bool saved; };
@@ -295,6 +334,36 @@ static void handleWifiForget() {
   sendOk();
 }
 
+static void handleHotspotPost() {
+  JsonDocument in;
+  if (!body(in)) return;
+  String ssid = in["ssid"] | "";
+  ssid.trim();
+  if (ssid.length() < 1 || ssid.length() > 32) return sendError("hotspot name must be 1-32 characters");
+  for (char c : ssid) if ((uint8_t)c < 32) return sendError("hotspot name has invalid characters");
+  String pass;
+  if (in["open"] | false) pass = "";
+  else {
+    pass = in["password"] | "";
+    if (!pass.length()) {
+      pass = apPass;
+      if (!pass.length()) return sendError("enter a password (8-63 characters) or choose an open network");
+    }
+    if (pass.length() < 8 || pass.length() > 63) return sendError("hotspot password must be 8-63 plain characters");
+    for (char c : pass) if ((uint8_t)c < 32 || (uint8_t)c > 126) return sendError("hotspot password must be 8-63 plain characters");
+  }
+  apSsid = ssid;
+  apPass = pass;
+  JsonDocument hs;
+  hs["ssid"] = apSsid; hs["password"] = apPass;
+  writeJson("/hotspot.json", hs);
+  logf("hotspot settings changed: %s (%s) - restarting hotspot", apSsid.c_str(), apPass.length() ? "password protected" : "open");
+  JsonDocument d;
+  d["ok"] = true; d["ssid"] = apSsid;
+  sendJson(d);
+  xTaskCreate(applyHotspotTask, "hotspot", 4096, nullptr, 2, nullptr);
+}
+
 static void handleAction() {
   JsonDocument in;
   if (!body(in)) return;
@@ -364,6 +433,8 @@ static void setupRoutes() {
   server.on("/api/action", HTTP_POST, handleAction);
   server.on("/api/cc", HTTP_POST, handleCC);
   server.on("/api/wifi", HTTP_GET, handleWifiState);
+  server.on("/api/hotspot", HTTP_GET, handleHotspotGet);
+  server.on("/api/hotspot", HTTP_POST, handleHotspotPost);
   server.on("/api/wifi/scan", HTTP_POST, handleWifiScan);
   server.on("/api/wifi/connect", HTTP_POST, handleWifiConnect);
   server.on("/api/wifi/up", HTTP_POST, handleWifiUp);
@@ -405,7 +476,7 @@ void netBegin() {
   setupRoutes();
   server.begin();
   logf("settings page on port 80");
-  xTaskCreate(autoJoinTask, "autojoin", 6144, nullptr, 1, nullptr);
+  xTaskCreate(wifiWatchTask, "wifiwatch", 6144, nullptr, 1, nullptr);
 }
 
 void netLoop() {
