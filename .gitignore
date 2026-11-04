@@ -3,3 +3,6 @@ __pycache__/
 .DS_Store
 Thumbs.db
 *.swp
+# ESP32-C3 build output (release/*.bin is kept)
+esp32-c3/.pio/
+esp32-c3/src/web_index.h

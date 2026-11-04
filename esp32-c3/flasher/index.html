@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>STOMPBOX Flasher</title>
+<script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+<style>
+  :root { --bg:#121315; --panel:#1b1d21; --fg:#eceae4; --muted:#9a9890; --accent:#ffb020; color-scheme: dark; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.5 system-ui, sans-serif; }
+  main { max-width: 640px; margin: 0 auto; padding: 32px max(16px, env(safe-area-inset-left)); }
+  h1 { font-size: 1.5rem; margin: 0 0 4px; } h1 span { color: var(--accent); }
+  .sub { color: var(--muted); margin: 0 0 24px; }
+  ol { padding-left: 1.2em; display: grid; gap: 10px; }
+  .box { background: var(--panel); border-radius: 12px; padding: 20px; margin: 20px 0; }
+  esp-web-install-button button[slot] { background: var(--accent); color: #1a1205; border: 0; border-radius: 10px;
+    padding: 12px 22px; font: 700 1rem system-ui; cursor: pointer; }
+  code { background: #23262b; padding: 1px 6px; border-radius: 5px; }
+  .warn { color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>STOMPBOX <span>Flasher</span></h1>
+  <p class="sub">Installs the STOMPBOX Controller firmware on an ESP32-C3 board, straight from the browser.</p>
+  <ol>
+    <li>Use <b>Chrome</b> or <b>Edge</b> on a computer (not a phone).</li>
+    <li>Connect the ESP32-C3 with a USB-C <b>data</b> cable.</li>
+    <li>Click <b>Install</b>, pick the board's port (often “USB JTAG/serial debug unit”) and confirm.</li>
+    <li>After about a minute, join the Wi-Fi <code>STOMPBOX-CTRL</code> (password <code>stompbox123</code>) – the settings page opens.</li>
+  </ol>
+  <div class="box">
+    <esp-web-install-button manifest="manifest.json">
+      <button slot="activate">Install STOMPBOX firmware</button>
+      <span slot="unsupported">This browser can't flash boards. Use Chrome or Edge on a computer.</span>
+      <span slot="not-allowed">Flashing needs a secure page (https).</span>
+    </esp-web-install-button>
+  </div>
+  <p class="warn">If the board isn't found: hold its <b>BOOT</b> button while plugging in the cable, then click Install again.
+  A first install erases the board. Later updates can be done over Wi-Fi from the settings page (<code>/update</code>), keeping all settings.</p>
+</main>
+</body>
+</html>

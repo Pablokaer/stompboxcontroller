@@ -119,7 +119,7 @@ footer { color: var(--muted); font-size: .75rem; text-align: center; }
       <div class="nets" id="bt-saved"></div>
     </div>
     <p class="op" id="bt-op" hidden></p>
-    <p class="hint">The <b>startup device</b> is connected every time the Pi starts, and reconnected whenever it comes back in range. <b>Connect now</b> switches to another device until the next restart. Only Bluetooth MIDI devices are listed; the effect commands are made for the JME STOMPBOX.</p>
+    <p class="hint">The <b>startup device</b> is connected every time the controller starts, and reconnected whenever it comes back in range. <b>Connect now</b> switches to another device until the next restart. Only Bluetooth MIDI devices are listed; the effect commands are made for the JME STOMPBOX.</p>
   </section>
 
   <section>
@@ -135,7 +135,7 @@ footer { color: var(--muted); font-size: .75rem; text-align: center; }
       <div class="nets" id="wifi-saved"></div>
     </div>
     <p class="op" id="wifi-op" hidden></p>
-    <p class="hint">The Pi has one Wi-Fi radio, so when it joins a network the STOMPBOX-CTRL hotspot restarts on that network's channel. If you're on the hotspot, your phone drops for about 30 seconds: rejoin STOMPBOX-CTRL and the result shows here. From then on the page is also reachable on that network at the address shown above.</p>
+    <p class="hint">The controller has one Wi-Fi radio, so when it joins a network the hotspot moves to that network's channel. If you're on the hotspot, your phone may drop for up to 30 seconds: rejoin the hotspot and the result shows here. From then on the page is also reachable on that network at the address shown above.</p>
   </section>
 
   <section>
@@ -143,7 +143,7 @@ footer { color: var(--muted); font-size: .75rem; text-align: center; }
     <div class="seg" id="profile-seg">
       <button data-p="4">4 buttons</button><button data-p="5">5 buttons</button>
     </div>
-    <p class="hint">Each profile keeps its own settings. The active profile is the one the Pi listens to.</p>
+    <p class="hint">Each profile keeps its own settings. The active profile is the one the controller listens to.</p>
   </section>
 
   <section>
@@ -188,7 +188,13 @@ footer { color: var(--muted); font-size: .75rem; text-align: center; }
 
 <script>
 const EFFECTS = [["mod","MOD"],["delay","DELAY"],["reverb","REVERB"],["gate","GATE"],["eq","EQ"]];
+// Raspberry Pi: GPIO -> physical header pin. Other boards (ESP32-C3) send their own
+// list as "pins_available" with the settings.
 const PHYS = {4:7,17:11,27:13,22:15,23:16,24:18,25:22,5:29,6:31,12:32,13:33,19:35,16:36,26:37,20:38,21:40};
+function pinChoices() {
+  if (cfg.pins_available) return cfg.pins_available;
+  return Object.keys(PHYS).map(Number).sort((x, y) => PHYS[x] - PHYS[y]).map(g => ({gpio: g, label: `GPIO${g} · pin ${PHYS[g]}`}));
+}
 let cfg = null, dirty = false;
 const $ = s => document.querySelector(s);
 
@@ -232,8 +238,8 @@ function render() {
   p.buttons.forEach((b, i) => {
     const c = document.createElement("div"); c.className = "card";
     const pin = document.createElement("select"); pin.id = `gpio-${i}`; pin.style.width = "auto";
-    for (const g of Object.keys(PHYS).map(Number).sort((x,y)=>PHYS[x]-PHYS[y]))
-      if (g === b.gpio || !used.has(g)) pin.add(new Option(`GPIO${g} · pin ${PHYS[g]}`, g));
+    for (const {gpio: g, label} of pinChoices())
+      if (g === b.gpio || !used.has(g)) pin.add(new Option(label, g));
     pin.value = b.gpio; pin.onchange = () => { b.gpio = Number(pin.value); markDirty(); render(); };
     const h = document.createElement("div"); h.className = "card-h";
     h.innerHTML = `<b>Footswitch ${i+1}</b>`; h.append(pin);
@@ -333,7 +339,7 @@ async function loadWifi() {
       const fg = document.createElement("button"); fg.className = "small-btn"; fg.textContent = "Forget";
       fg.onclick = () => {
         if (fg.dataset.armed) return run(() => post("/api/wifi/forget", {name: s.name}));
-        fg.dataset.armed = 1; fg.textContent = active ? "Tap again: Pi leaves this network" : "Tap again to forget";
+        fg.dataset.armed = 1; fg.textContent = active ? "Tap again: controller leaves this network" : "Tap again to forget";
         setTimeout(() => { delete fg.dataset.armed; fg.textContent = "Forget"; }, 4000);
       };
       acts.append(fg); row.append(acts); sv.append(row);
@@ -436,7 +442,7 @@ $("#bt-scan").onclick = async () => {
     const j = await post("/api/bt/scan");
     const midi = j.devices.filter(d => d.midi), others = j.devices.length - midi.length;
     list.innerHTML = "";
-    if (!midi.length) list.innerHTML = `<p class="hint">No Bluetooth MIDI devices found. Make sure the pedal is on and close to the Pi, then try again.</p>`;
+    if (!midi.length) list.innerHTML = `<p class="hint">No Bluetooth MIDI devices found. Make sure the pedal is on and close to the controller, then try again.</p>`;
     for (const d of midi) {
       const row = document.createElement("div"); row.className = "net";
       const h = document.createElement("button"); h.type = "button"; h.className = "net-h";
@@ -477,7 +483,7 @@ async function poll() {
     $("#conn-led").className = "led " + (s.pedal_connected ? "on" : "bad");
     $("#conn-txt").textContent = s.pedal_connected ? `Pedal connected${s.program != null ? " · preset " + s.program : ""}` : "Pedal not connected";
     if (s.pedal) renderBt(s.pedal);
-    if (s.version) $("#version").textContent = "v" + s.version;
+    if (s.version) $("#version").textContent = "v" + s.version + (s.platform ? " · " + s.platform : " · Raspberry Pi");
     $("#fx").innerHTML = EFFECTS.map(([e,n]) => `<span class="pill"><span class="led ${s.effects[e] ? "amber" : ""}"></span>${n}</span>`).join("");
     $("#log").textContent = s.log.join("\n");
     (s.pins_low || []).forEach((low, i) => {
@@ -485,7 +491,7 @@ async function poll() {
       st.querySelector(".led").className = "led" + (low ? " on" : "");
       st.title = low ? "this footswitch's pin reads pressed" : "";
     });
-  } catch { $("#conn-led").className = "led bad"; $("#conn-txt").textContent = "Pi unreachable"; }
+  } catch { $("#conn-led").className = "led bad"; $("#conn-txt").textContent = "Controller unreachable"; }
 }
 
 document.querySelectorAll("#profile-seg button").forEach(b => b.onclick = () => { cfg.active_profile = b.dataset.p; markDirty(); render(); });

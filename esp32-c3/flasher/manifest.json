@@ -1,0 +1,11 @@
+{
+  "name": "STOMPBOX Controller (ESP32-C3)",
+  "version": "1.2.0",
+  "new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP32-C3",
+      "parts": [{ "path": "../release/stompbox-esp32c3-full.bin", "offset": 0 }]
+    }
+  ]
+}

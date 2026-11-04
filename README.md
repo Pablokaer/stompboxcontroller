@@ -12,7 +12,13 @@ together), which Bluetooth device it connects to, and which Wi-Fi networks it jo
 
 _The settings page on a phone (example data – a second pedal and a WIDI adapter illustrate the device list)._
 
-> **Current version: 1.1.0** – see [CHANGELOG.md](CHANGELOG.md). This README is
+> **Two hardware options.** This README covers the **Raspberry Pi Zero W**
+> version (tested on hardware). An **ESP32-C3** version with the same features
+> and the same settings page lives in [`esp32-c3/`](esp32-c3) – cheaper, starts in
+> seconds, installed from a browser; compiled but not yet tested on hardware.
+> See [esp32-c3/README.md](esp32-c3/README.md).
+
+> **Current version: 1.2.0** – see [CHANGELOG.md](CHANGELOG.md). This README is
 > updated with every change to the project (see [Keeping this README current](#keeping-this-readme-current)).
 
 ---
@@ -436,12 +442,13 @@ stompboxcontroller/
 ├── uninstall.sh
 ├── software/
 │   ├── stompboxd.py        controller: pedal (Bluetooth), MIDI, GPIO engine, Wi-Fi, web server
-│   ├── web/index.html      settings page (single file, no external resources)
+│   ├── web/index.html      settings page (single file, no external resources) – shared with the ESP32-C3 firmware
 │   ├── bin/                stomp, stompbox-ap.sh, stompbox-update
 │   └── system/             systemd services, dnsmasq + nftables + NetworkManager config
 ├── hardware/
 │   ├── case/               5-buttons, 4-buttons, 4-buttons-slim: STL + SCAD + preview
 │   └── wiring/             wiring diagram (PNG + HTML)
+├── esp32-c3/               ESP32-C3 version: firmware, flasher, wiring, own README
 ├── docs/                   MIDI map, images
 ├── tests/                  footswitch logic, settings validation, Bluetooth device list
 ├── CHANGELOG.md

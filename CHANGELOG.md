@@ -7,6 +7,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/), versions follow `VERSIO
 
 _Nothing yet._
 
+## [1.2.0] – 2026-11-04
+
+### Added
+- **ESP32-C3 version** in `esp32-c3/` (own README): firmware with the same features as the Pi version – pedal over Bluetooth MIDI with device manager, 4/5 footswitches with press/hold/combos, own hotspot with captive portal, joining Wi-Fi networks, same settings page and API – plus a browser flasher (ESP Web Tools), ready-to-flash binaries, firmware update over Wi-Fi (`/update`), factory reset (BOOT 10 s) and a SuperMini wiring diagram. Compiles; not yet tested on hardware.
+
+### Changed
+- Settings page is platform-neutral: footswitch pin list can come from the device (`pins_available` in `/api/config`), wording says "controller" instead of "Pi", footer shows the platform.
+
 ## [1.1.0] – 2026-11-04
 
 ### Added

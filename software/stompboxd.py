@@ -14,7 +14,7 @@ import json, os, re, socket, subprocess, threading, time, shutil
 from collections import deque
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 ETC = os.environ.get("STOMPBOX_ETC", "/etc/stompbox")
 CONFIG_PATH = os.environ.get("STOMPBOX_CONFIG", os.path.join(ETC, "config.json"))
 PEDAL_PATH = os.path.join(ETC, "pedal.json")
