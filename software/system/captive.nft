@@ -1,0 +1,18 @@
+# Captive portal for STOMPBOX-CTRL (loaded by stompbox-ap.sh, only touches uap0)
+table ip stompbox_captive {
+  chain prerouting {
+    type nat hook prerouting priority dstnat; policy accept;
+    # phones with hard-coded DNS servers still get our answers
+    iifname "uap0" udp dport 53 dnat to 192.168.4.1:53
+    iifname "uap0" tcp dport 53 dnat to 192.168.4.1:53
+    # any web request to any address goes to the settings page
+    iifname "uap0" tcp dport 80 ip daddr != 192.168.4.1 dnat to 192.168.4.1:80
+    # HTTPS can't be redirected; send it to a closed port so it fails fast
+    iifname "uap0" tcp dport 443 dnat to 192.168.4.1:443
+  }
+  chain forward {
+    type filter hook forward priority filter; policy accept;
+    # hotspot clients never get routed out to the home network
+    iifname "uap0" drop
+  }
+}

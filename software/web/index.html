@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>STOMPBOX Control</title>
+<style>
+/* Stage-gear look: dark panel, one amber accent like a pedal LED. System fonts only (the hotspot has no internet). */
+:root {
+  --bg: #121315; --panel: #1b1d21; --panel2: #23262b; --line: #2f3339;
+  --fg: #eceae4; --muted: #9a9890; --accent: #ffb020; --accent-fg: #1a1205;
+  --ok: #3ccf7a; --off: #4a4e55; --bad: #ff5a4f;
+  --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.45 var(--sans); }
+.wrap { max-width: 760px; margin: 0 auto; padding: 16px max(16px, env(safe-area-inset-left)) 96px; display: flex; flex-direction: column; gap: 18px; }
+header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+h1 { font-size: 1.25rem; margin: 0; letter-spacing: .04em; }
+h1 span { color: var(--accent); }
+h2 { font-size: .78rem; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin: 0 0 10px; }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: var(--panel2); font-size: .82rem; }
+.led { width: 9px; height: 9px; border-radius: 50%; background: var(--off); flex: none; }
+.led.on { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+.led.bad { background: var(--bad); }
+.led.amber { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+section { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+.fx { display: flex; flex-wrap: wrap; gap: 8px; }
+.fx .pill { font-family: var(--mono); }
+.seg { display: inline-flex; background: var(--panel2); border-radius: 10px; padding: 3px; gap: 3px; }
+.seg button { border: 0; background: transparent; color: var(--fg); padding: 8px 16px; border-radius: 8px; font: inherit; cursor: pointer; }
+.seg button.sel { background: var(--accent); color: var(--accent-fg); font-weight: 700; }
+.btns { display: grid; gap: 10px; }
+.card { background: var(--panel2); border-radius: 10px; padding: 12px; display: grid; gap: 10px; }
+.card-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.card-h b { font-size: 1rem; }
+.card-h small { color: var(--muted); font-family: var(--mono); }
+.row { display: grid; grid-template-columns: 74px 1fr; gap: 8px; align-items: center; }
+.row > label { color: var(--muted); font-size: .85rem; }
+.act { display: flex; gap: 6px; min-width: 0; }
+select, input[type=number] { background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 8px; font: inherit; min-width: 0; width: 100%; }
+input[type=number] { width: 84px; flex: none; }
+select:focus, input:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.combo { display: grid; gap: 8px; background: var(--panel2); border-radius: 10px; padding: 10px; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.chip { border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 8px; padding: 6px 10px; font: inherit; cursor: pointer; font-family: var(--mono); }
+.chip.sel { border-color: var(--accent); color: var(--accent); }
+.ghost { border: 1px dashed var(--line); background: transparent; color: var(--muted); border-radius: 10px; padding: 10px; font: inherit; cursor: pointer; width: 100%; }
+.x { border: 0; background: transparent; color: var(--muted); font-size: 1.2rem; cursor: pointer; margin-left: auto; }
+.timing { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.timing label { display: flex; justify-content: space-between; align-items: center; gap: 10px; color: var(--muted); }
+.pad { display: grid; grid-template-columns: repeat(var(--n), 1fr); gap: 10px; }
+.foot { aspect-ratio: 1; max-width: 100%; border-radius: 50%; border: 3px solid var(--line); background: radial-gradient(circle at 40% 35%, #3a3e45, #202227); color: var(--fg); font: 700 .78rem var(--mono); cursor: pointer; user-select: none; touch-action: none; display: grid; place-items: center; text-align: center; padding: 4px; }
+.foot.down { border-color: var(--accent); box-shadow: 0 0 14px var(--accent); }
+.hint { color: var(--muted); font-size: .82rem; margin: 8px 0 0; }
+.log { font: .78rem/1.5 var(--mono); color: var(--muted); max-height: 160px; overflow: auto; margin: 0; white-space: pre-wrap; }
+.bar { position: fixed; left: 0; right: 0; bottom: 0; background: rgba(18,19,21,.94); border-top: 1px solid var(--line); padding: 10px max(16px, env(safe-area-inset-left)) calc(10px + env(safe-area-inset-bottom)); }
+.bar-in { max-width: 760px; margin: 0 auto; display: flex; gap: 10px; align-items: center; }
+.save { flex: 1; border: 0; background: var(--accent); color: var(--accent-fg); font: 700 1rem var(--sans); padding: 12px; border-radius: 10px; cursor: pointer; }
+.save:disabled { opacity: .45; cursor: default; }
+.sec { border: 1px solid var(--line); background: transparent; color: var(--fg); padding: 12px; border-radius: 10px; font: inherit; cursor: pointer; }
+#msg { font-size: .85rem; }
+#msg.err { color: var(--bad); } #msg.ok { color: var(--ok); }
+/* test pad: press animation + wiring indicator under each switch */
+.pad-item { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; }
+.foot { -webkit-tap-highlight-color: transparent; -webkit-user-select: none; -webkit-touch-callout: none;
+  transition: transform .08s ease-out, border-color .12s, box-shadow .12s; width: 100%; }
+.foot.down { transform: scale(.93); }
+.pin-state { font: .7rem var(--mono); color: var(--muted); display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.pin-state .led { width: 7px; height: 7px; }
+/* wifi */
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-size: .9rem; }
+.kv dt { color: var(--muted); } .kv dd { margin: 0; font-family: var(--mono); overflow-wrap: anywhere; }
+.kv a { color: var(--accent); }
+.nets { display: grid; gap: 6px; margin-top: 10px; }
+.net { background: var(--panel2); border-radius: 10px; padding: 10px 12px; display: grid; gap: 8px; }
+.net-h { display: flex; align-items: center; gap: 10px; cursor: pointer; background: none; border: 0; color: var(--fg); font: inherit; padding: 0; text-align: left; width: 100%; }
+.net-h .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.net-h small { color: var(--muted); font-family: var(--mono); }
+.bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 12px; }
+.bars i { width: 3px; background: var(--off); border-radius: 1px; }
+.bars i.on { background: var(--fg); }
+.join { display: flex; gap: 8px; flex-wrap: wrap; }
+.join input { flex: 1 1 160px; background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 8px; font: inherit; min-width: 0; }
+.small-btn { border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 8px; padding: 8px 12px; font: inherit; cursor: pointer; }
+.small-btn.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); font-weight: 700; }
+.small-btn:disabled { opacity: .5; cursor: default; }
+.op { margin-top: 10px; font-size: .88rem; }
+.op.working { color: var(--accent); } .op.ok { color: var(--ok); } .op.error { color: var(--bad); }
+.actions-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.pedal-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.pedal-info { font: .85rem var(--mono); color: var(--muted); overflow-wrap: anywhere; min-width: 0; }
+footer { color: var(--muted); font-size: .75rem; text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>STOMPBOX <span>CONTROL</span></h1>
+    <span class="pill"><span class="led" id="conn-led"></span><span id="conn-txt">checking…</span></span>
+  </header>
+
+  <section>
+    <h2>Pedal</h2>
+    <div class="pedal-row">
+      <span id="pedal-info" class="pedal-info">checking…</span>
+      <button class="small-btn" id="pedal-forget" type="button">Pair a different pedal</button>
+    </div>
+    <div class="fx" id="fx"></div>
+  </section>
+
+  <section>
+    <h2>Wi-Fi</h2>
+    <dl class="kv" id="wifi-now"><dt>Network</dt><dd>checking…</dd></dl>
+    <div class="actions-row">
+      <button class="small-btn primary" id="wifi-scan">Find networks</button>
+      <button class="small-btn" id="wifi-other">Hidden network…</button>
+    </div>
+    <div class="nets" id="wifi-list"></div>
+    <div id="wifi-saved-wrap" hidden>
+      <h2 style="margin-top:14px">Saved networks</h2>
+      <div class="nets" id="wifi-saved"></div>
+    </div>
+    <p class="op" id="wifi-op" hidden></p>
+    <p class="hint">The Pi has one Wi-Fi radio, so when it joins a network the STOMPBOX-CTRL hotspot restarts on that network's channel. If you're on the hotspot, your phone drops for about 30 seconds: rejoin STOMPBOX-CTRL and the result shows here. From then on the page is also reachable on that network at the address shown above.</p>
+  </section>
+
+  <section>
+    <h2>Footswitch profile</h2>
+    <div class="seg" id="profile-seg">
+      <button data-p="4">4 buttons</button><button data-p="5">5 buttons</button>
+    </div>
+    <p class="hint">Each profile keeps its own settings. The active profile is the one the Pi listens to.</p>
+  </section>
+
+  <section>
+    <h2>Buttons</h2>
+    <div class="btns" id="buttons"></div>
+  </section>
+
+  <section>
+    <h2>Combos (press together)</h2>
+    <div class="btns" id="combos"></div>
+    <button class="ghost" id="add-combo" style="margin-top:10px">+ Add combo</button>
+    <p class="hint">Press the selected buttons within the combo window to fire the combo instead of their single actions.</p>
+  </section>
+
+  <section>
+    <h2>Timing</h2>
+    <div class="timing">
+      <label for="hold-ms">Hold after (ms) <input type="number" id="hold-ms" min="200" max="3000" step="50"></label>
+      <label for="combo-ms">Combo window (ms) <input type="number" id="combo-ms" min="30" max="500" step="10"></label>
+    </div>
+    <p class="hint">Buttons with a hold action fire their press action on release, so a hold can be told apart from a tap.</p>
+  </section>
+
+  <section>
+    <h2>Test pad</h2>
+    <div class="pad" id="pad"></div>
+    <p class="hint">Works like the real footswitches (tap, hold, or press several at once) using the saved settings. The green dot under a pad lights while that real footswitch is pressed – handy for checking the wiring.</p>
+  </section>
+
+  <section>
+    <h2>Activity</h2>
+    <pre class="log" id="log"></pre>
+  </section>
+  <footer>STOMPBOX Control <span id="version"></span> · github.com/Pablokaer/stompboxcontroller</footer>
+</div>
+
+<div class="bar"><div class="bar-in">
+  <span id="msg"></span>
+  <button class="sec" id="reset">Defaults</button>
+  <button class="save" id="save" disabled>Save settings</button>
+</div></div>
+
+<script>
+const EFFECTS = [["mod","MOD"],["delay","DELAY"],["reverb","REVERB"],["gate","GATE"],["eq","EQ"]];
+const PHYS = {4:7,17:11,27:13,22:15,23:16,24:18,25:22,5:29,6:31,12:32,13:33,19:35,16:36,26:37,20:38,21:40};
+let cfg = null, dirty = false;
+const $ = s => document.querySelector(s);
+
+function actionOptions(allowMomentary) {
+  const o = [["none","— nothing —"]];
+  for (const [e,n] of EFFECTS) o.push([`toggle:${e}`, `Toggle ${n}`]);
+  if (allowMomentary) for (const [e,n] of EFFECTS) o.push([`momentary:${e}`, `${n} while held`]);
+  for (const [e,n] of EFFECTS) o.push([`on:${e}`, `Turn ${n} on`]);
+  for (const [e,n] of EFFECTS) o.push([`off:${e}`, `Turn ${n} off`]);
+  o.push(["all_off","All effects off"],["all_on","All effects on"],["preset_next","Next preset"],["preset_prev","Previous preset"],["preset","Go to preset…"]);
+  return o;
+}
+const enc = a => a.type === "preset" ? "preset" : (a.effect ? `${a.type}:${a.effect}` : a.type);
+function dec(v, presetVal) {
+  if (v === "preset") return {type:"preset", preset: Number(presetVal) || 0};
+  const [type, effect] = v.split(":"); return effect ? {type, effect} : {type};
+}
+
+function actionPicker(act, allowMomentary, onChange, id) {
+  const box = document.createElement("div"); box.className = "act";
+  const sel = document.createElement("select"); sel.id = id;
+  for (const [v,t] of actionOptions(allowMomentary)) sel.add(new Option(t, v));
+  sel.value = enc(act);
+  const num = document.createElement("input"); num.type = "number"; num.min = 0; num.max = 127; num.id = id + "-p";
+  num.value = act.preset ?? 0; num.hidden = sel.value !== "preset"; num.setAttribute("aria-label","preset number");
+  const fire = () => { num.hidden = sel.value !== "preset"; onChange(dec(sel.value, num.value)); };
+  sel.onchange = fire; num.oninput = fire;
+  box.append(sel, num); return box;
+}
+
+function prof() { return cfg.profiles[cfg.active_profile]; }
+function markDirty() { dirty = true; $("#save").disabled = false; setMsg(""); }
+function setMsg(t, cls="") { const m = $("#msg"); m.textContent = t; m.className = cls; }
+
+function render() {
+  document.querySelectorAll("#profile-seg button").forEach(b => b.classList.toggle("sel", b.dataset.p === cfg.active_profile));
+  const p = prof(), n = p.buttons.length;
+  // buttons
+  const bw = $("#buttons"); bw.innerHTML = "";
+  const used = new Set(p.buttons.map(b => b.gpio));
+  p.buttons.forEach((b, i) => {
+    const c = document.createElement("div"); c.className = "card";
+    const pin = document.createElement("select"); pin.id = `gpio-${i}`; pin.style.width = "auto";
+    for (const g of Object.keys(PHYS).map(Number).sort((x,y)=>PHYS[x]-PHYS[y]))
+      if (g === b.gpio || !used.has(g)) pin.add(new Option(`GPIO${g} · pin ${PHYS[g]}`, g));
+    pin.value = b.gpio; pin.onchange = () => { b.gpio = Number(pin.value); markDirty(); render(); };
+    const h = document.createElement("div"); h.className = "card-h";
+    h.innerHTML = `<b>Footswitch ${i+1}</b>`; h.append(pin);
+    const r1 = document.createElement("div"); r1.className = "row";
+    r1.innerHTML = `<label for="press-${i}">Press</label>`;
+    r1.append(actionPicker(b.press, true, a => { b.press = a; if (a.type === "momentary") b.hold = {type:"none"}; markDirty(); render(); }, `press-${i}`));
+    const r2 = document.createElement("div"); r2.className = "row";
+    r2.innerHTML = `<label for="hold-${i}">Hold</label>`;
+    const hp = actionPicker(b.hold, false, a => { b.hold = a; markDirty(); }, `hold-${i}`);
+    if (b.press.type === "momentary") { hp.querySelector("select").disabled = true; hp.title = "Not available while Press is 'while held'"; }
+    r2.append(hp);
+    c.append(h, r1, r2); bw.append(c);
+  });
+  // combos
+  const cw = $("#combos"); cw.innerHTML = "";
+  p.combos.forEach((cb, k) => {
+    const c = document.createElement("div"); c.className = "combo";
+    const chips = document.createElement("div"); chips.className = "chips";
+    for (let i = 0; i < n; i++) {
+      const ch = document.createElement("button"); ch.className = "chip" + (cb.buttons.includes(i) ? " sel" : "");
+      ch.textContent = `FS${i+1}`; ch.setAttribute("aria-pressed", cb.buttons.includes(i));
+      ch.onclick = () => { cb.buttons = cb.buttons.includes(i) ? cb.buttons.filter(x=>x!==i) : [...cb.buttons, i].sort(); markDirty(); render(); };
+      chips.append(ch);
+    }
+    const x = document.createElement("button"); x.className = "x"; x.textContent = "×"; x.title = "Remove combo";
+    x.onclick = () => { p.combos.splice(k,1); markDirty(); render(); };
+    chips.append(x);
+    c.append(chips, actionPicker(cb.action, false, a => { cb.action = a; markDirty(); }, `combo-${k}`));
+    cw.append(c);
+  });
+  $("#hold-ms").value = cfg.hold_ms; $("#combo-ms").value = cfg.combo_ms;
+  // test pad
+  const pad = $("#pad"); pad.style.setProperty("--n", n); pad.innerHTML = "";
+  p.buttons.forEach((b, i) => {
+    const item = document.createElement("div"); item.className = "pad-item";
+    const f = document.createElement("button"); f.className = "foot"; f.id = `foot-${i}`;
+    f.type = "button"; f.textContent = `FS${i+1}`;
+    const st = document.createElement("span"); st.className = "pin-state"; st.id = `pin-${i}`;
+    st.innerHTML = `<span class="led"></span>GPIO${b.gpio}`;
+    const send = down => fetch("/api/sim", {method:"POST", body: JSON.stringify({button:i, down})}).catch(() => {});
+    const press = e => { e.preventDefault(); if (f.classList.contains("down")) return;
+      try { f.setPointerCapture(e.pointerId); } catch {}
+      f.classList.add("down"); send(true); };
+    const up = () => { if (f.classList.contains("down")) { f.classList.remove("down"); send(false); } };
+    f.onpointerdown = press;
+    f.onpointerup = up; f.onpointercancel = up; f.onlostpointercapture = up;
+    f.oncontextmenu = e => e.preventDefault();
+    f.onkeydown = e => { if ((e.key === " " || e.key === "Enter") && !e.repeat) { e.preventDefault(); f.classList.add("down"); send(true); } };
+    f.onkeyup = e => { if (e.key === " " || e.key === "Enter") up(); };
+    item.append(f, st); pad.append(item);
+  });
+}
+// never leave a test-pad switch "held" if the page is hidden mid-press
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) document.querySelectorAll(".foot.down").forEach(f => f.onpointerup());
+});
+
+// ------------------------------------------------------------------ Wi-Fi
+let wifiBusy = false, openNet = null;
+function bars(sig) {
+  const n = sig >= 75 ? 4 : sig >= 50 ? 3 : sig >= 30 ? 2 : 1;
+  return `<span class="bars" aria-label="signal ${sig}%">${[5,7,9,12].map((h,k)=>`<i style="height:${h}px" class="${k<n?"on":""}"></i>`).join("")}</span>`;
+}
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+async function post(url, body) {
+  const r = await fetch(url, {method:"POST", body: JSON.stringify(body || {})});
+  const j = await r.json(); if (!j.ok) throw new Error(j.error || "failed"); return j;
+}
+function showOp(op) {
+  const el = $("#wifi-op");
+  if (!op || op.state === "idle") { el.hidden = true; return; }
+  el.hidden = false; el.className = "op " + op.state;
+  el.textContent = (op.at ? op.at + " · " : "") + op.message;
+  wifiBusy = op.state === "working";
+  document.querySelectorAll("#wifi-scan, #wifi-other, .net button, .net input").forEach(b => b.disabled = wifiBusy);
+}
+async function loadWifi() {
+  try {
+    const w = await (await fetch("/api/wifi")).json();
+    const c = w.current, h = w.hotspot;
+    $("#wifi-now").innerHTML =
+      `<dt>Network</dt><dd>${c.connected ? esc(c.ssid || c.connection) + (c.channel ? " · ch " + c.channel : "") : "not connected"}</dd>` +
+      (c.ip ? `<dt>Page on it</dt><dd><a href="http://${esc(c.ip)}/">http://${esc(c.ip)}</a></dd>` : "") +
+      `<dt>Hotspot</dt><dd>${h.running ? `${esc(h.ssid)} · 192.168.4.1${h.channel ? " · ch " + h.channel : ""}` : "off"}</dd>`;
+    const sv = $("#wifi-saved");
+    $("#wifi-saved-wrap").hidden = !w.saved.length;
+    const key = JSON.stringify([w.saved, c.connection, wifiBusy]);
+    if (sv.dataset.key === key) { showOp(w.op); return; }   // unchanged: keep buttons (and a pending "tap again")
+    sv.dataset.key = key; sv.innerHTML = "";
+    for (const s of w.saved) {
+      const active = s.name === c.connection;
+      const row = document.createElement("div"); row.className = "net";
+      row.innerHTML = `<div class="net-h"><span class="name">${esc(s.ssid)}</span><small>${active ? "connected" : ""}</small></div>`;
+      const acts = document.createElement("div"); acts.className = "join";
+      if (!active) { const up = document.createElement("button"); up.className = "small-btn"; up.textContent = "Connect";
+        up.onclick = () => run(() => post("/api/wifi/up", {name: s.name})); acts.append(up); }
+      const fg = document.createElement("button"); fg.className = "small-btn"; fg.textContent = "Forget";
+      fg.onclick = () => {
+        if (fg.dataset.armed) return run(() => post("/api/wifi/forget", {name: s.name}));
+        fg.dataset.armed = 1; fg.textContent = active ? "Tap again: Pi leaves this network" : "Tap again to forget";
+        setTimeout(() => { delete fg.dataset.armed; fg.textContent = "Forget"; }, 4000);
+      };
+      acts.append(fg); row.append(acts); sv.append(row);
+    }
+    showOp(w.op);
+  } catch { /* hotspot restarting – try again on the next poll */ }
+}
+async function run(fn) {
+  try { await fn(); showOp({state:"working", message:"working… if you're on the hotspot, rejoin STOMPBOX-CTRL in ~30 s"}); }
+  catch (e) { showOp({state:"error", message: e.message}); }
+}
+function joinForm(ssid, secure, hidden) {
+  const box = document.createElement("div"); box.className = "join";
+  let nameIn = null;
+  if (hidden) { nameIn = document.createElement("input"); nameIn.placeholder = "Network name"; nameIn.id = "hidden-ssid"; box.append(nameIn); }
+  const pw = document.createElement("input"); pw.type = "password"; pw.placeholder = "Password"; pw.id = "wifi-pw-" + (ssid || "hidden");
+  pw.autocomplete = "off"; if (!secure && !hidden) pw.hidden = true;
+  const go = document.createElement("button"); go.className = "small-btn primary"; go.textContent = "Connect";
+  go.onclick = () => run(() => post("/api/wifi/connect", {ssid: hidden ? nameIn.value : ssid, password: pw.value, hidden}));
+  pw.onkeydown = e => { if (e.key === "Enter") go.click(); };
+  box.append(pw, go); return box;
+}
+async function scan() {
+  const list = $("#wifi-list"); const btn = $("#wifi-scan");
+  btn.disabled = true; btn.textContent = "Searching…";
+  try {
+    const j = await post("/api/wifi/scan");
+    list.innerHTML = "";
+    if (!j.networks.length) list.innerHTML = `<p class="hint">No networks found. Try again.</p>`;
+    for (const n of j.networks) {
+      const row = document.createElement("div"); row.className = "net";
+      const h = document.createElement("button"); h.className = "net-h"; h.type = "button";
+      h.innerHTML = `${bars(n.signal)}<span class="name">${esc(n.ssid)}</span><small>${n.in_use ? "connected" : (n.secure ? "🔒" : "open")}</small>`;
+      row.append(h);
+      if (!n.in_use) h.onclick = () => {
+        const ex = row.querySelector(".join"); if (ex) { ex.remove(); return; }
+        document.querySelectorAll("#wifi-list .join").forEach(x => x.remove());
+        const f = joinForm(n.ssid, n.secure, false); row.append(f); (f.querySelector("input:not([hidden])") || f.querySelector("button")).focus();
+      };
+      list.append(row);
+    }
+  } catch (e) { list.innerHTML = `<p class="op error">${esc(e.message)}</p>`; }
+  btn.disabled = false; btn.textContent = "Find networks";
+}
+$("#wifi-scan").onclick = scan;
+$("#wifi-other").onclick = () => {
+  const list = $("#wifi-list"); list.innerHTML = "";
+  const row = document.createElement("div"); row.className = "net"; row.append(joinForm(null, true, true)); list.append(row);
+  row.querySelector("input").focus();
+};
+loadWifi(); setInterval(loadWifi, 4000);
+
+// pair a different pedal (two taps, so it can't happen by accident)
+$("#pedal-forget").onclick = async () => {
+  const b = $("#pedal-forget");
+  if (!b.dataset.armed) {
+    b.dataset.armed = 1; b.textContent = "Tap again: forget this pedal";
+    setTimeout(() => { delete b.dataset.armed; b.textContent = "Pair a different pedal"; }, 4000);
+    return;
+  }
+  delete b.dataset.armed; b.textContent = "Pair a different pedal";
+  await fetch("/api/pedal/forget", {method: "POST", body: "{}"});
+  $("#pedal-info").textContent = "searching for a JME STOMPBOX… switch the pedal on";
+};
+
+async function load() {
+  cfg = await (await fetch("/api/config")).json();
+  dirty = false; $("#save").disabled = true; render();
+}
+async function save() {
+  if (dirty && cfg.profiles[cfg.active_profile].combos.some(c => c.buttons.length < 2)) return setMsg("Each combo needs at least 2 buttons", "err");
+  $("#save").disabled = true;
+  const r = await fetch("/api/config", {method:"POST", body: JSON.stringify(cfg)});
+  const j = await r.json();
+  if (j.ok) { cfg = j.config; dirty = false; render(); setMsg("Saved", "ok"); }
+  else { $("#save").disabled = false; setMsg(j.error, "err"); }
+}
+
+async function poll() {
+  try {
+    const s = await (await fetch("/api/status")).json();
+    $("#conn-led").className = "led " + (s.pedal_connected ? "on" : "bad");
+    $("#conn-txt").textContent = s.pedal_connected ? `Pedal connected${s.program != null ? " · preset " + s.program : ""}` : "Pedal not connected";
+    if (s.pedal) {
+      const st = {connected: "connected", connecting: "connecting… (is the pedal on?)", searching: "searching for a JME STOMPBOX… switch the pedal on"}[s.pedal.state] || s.pedal.state;
+      $("#pedal-info").textContent = `${s.pedal.name}${s.pedal.mac ? " · " + s.pedal.mac : ""} · ${st}`;
+      $("#pedal-forget").hidden = !s.pedal.mac;
+    }
+    if (s.version) $("#version").textContent = "v" + s.version;
+    $("#fx").innerHTML = EFFECTS.map(([e,n]) => `<span class="pill"><span class="led ${s.effects[e] ? "amber" : ""}"></span>${n}</span>`).join("");
+    $("#log").textContent = s.log.join("\n");
+    (s.pins_low || []).forEach((low, i) => {
+      const st = $(`#pin-${i}`); if (!st) return;
+      st.querySelector(".led").className = "led" + (low ? " on" : "");
+      st.title = low ? "this footswitch's pin reads pressed" : "";
+    });
+  } catch { $("#conn-led").className = "led bad"; $("#conn-txt").textContent = "Pi unreachable"; }
+}
+
+document.querySelectorAll("#profile-seg button").forEach(b => b.onclick = () => { cfg.active_profile = b.dataset.p; markDirty(); render(); });
+$("#add-combo").onclick = () => { prof().combos.push({buttons:[0,1], action:{type:"all_off"}}); markDirty(); render(); };
+$("#hold-ms").oninput = e => { cfg.hold_ms = Number(e.target.value); markDirty(); };
+$("#combo-ms").oninput = e => { cfg.combo_ms = Number(e.target.value); markDirty(); };
+$("#save").onclick = save;
+$("#reset").onclick = async () => { const d = await (await fetch("/api/default")).json(); d.active_profile = cfg.active_profile; cfg = d; markDirty(); render(); setMsg("Defaults loaded – press Save to keep them"); };
+load(); poll(); setInterval(poll, 1000);
+</script>
+</body>
+</html>

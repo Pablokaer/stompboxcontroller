@@ -1,0 +1,18 @@
+#!/bin/bash
+# stompbox-update – get the latest version from GitHub and reinstall it.
+# Settings (buttons, pedal, hotspot, Wi-Fi networks) are kept.
+# Usage: sudo stompbox-update            (branch: main)
+#        sudo STOMPBOX_BRANCH=dev stompbox-update
+set -e
+[ "$(id -u)" = 0 ] || exec sudo -E "$0" "$@"
+REPO=${STOMPBOX_REPO:-https://github.com/Pablokaer/stompboxcontroller.git}
+BRANCH=${STOMPBOX_BRANCH:-main}
+SRC=/opt/stompbox-src
+if [ -d $SRC/.git ]; then
+  git -C $SRC fetch --depth 1 origin "$BRANCH"
+  git -C $SRC reset --hard FETCH_HEAD
+else
+  rm -rf $SRC
+  git clone --depth 1 -b "$BRANCH" "$REPO" $SRC
+fi
+exec bash $SRC/install.sh

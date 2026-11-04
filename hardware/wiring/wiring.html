@@ -1,0 +1,167 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>STOMPBOX Footswitch Wiring</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600;700&display=swap">
+<style>
+/* Layout: a single schematic sheet — header in the middle, switches on both sides, pin table and notes below. */
+:root {
+  --bg: #f3f5f4; --paper: #ffffff; --fg: #18211f; --muted: #66726f; --line: #c9d1ce;
+  --board: #1f5c45; --board-fg: #e6f2ec; --pin-off: #8fa59c; --gnd: #2b2f2e;
+  --mod: #7b4fd6; --del: #0b84b8; --rev: #c2410c; --eq: #a16207; --gate: #be185d;
+  --font-body: "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #111615; --paper: #181f1d; --fg: #e4ebe8; --muted: #93a19c; --line: #2e3a37;
+  --board: #1c4a39; --board-fg: #d5ebe1; --pin-off: #5d7269; --gnd: #d9dedc;
+  --mod: #a88af0; --del: #4cb8e6; --rev: #f2834f; --eq: #e0b23c; --gate: #f06aa8; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #111615; --paper: #181f1d; --fg: #e4ebe8; --muted: #93a19c; --line: #2e3a37;
+  --board: #1c4a39; --board-fg: #d5ebe1; --pin-off: #5d7269; --gnd: #d9dedc;
+  --mod: #a88af0; --del: #4cb8e6; --rev: #f2834f; --eq: #e0b23c; --gate: #f06aa8; color-scheme: dark }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.55; }
+.wrap { max-width: 980px; margin: 0 auto; padding-block: 28px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 24px; }
+h1 { font-size: 1.7rem; margin: 0; text-wrap: balance; }
+.sub { color: var(--muted); margin: 4px 0 0; max-width: 65ch; }
+.sheet { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; overflow-x: auto; }
+.sheet svg { display: block; width: 100%; min-width: 760px; height: auto; }
+svg text { font-family: var(--font-mono); }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; }
+.grid > * { min-width: 0; }
+h2 { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 10px; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); }
+th { font-size: 0.78rem; color: var(--muted); font-weight: 600; }
+td.mono { font-family: var(--font-mono); font-size: 0.9rem; }
+.sw { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
+.dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+ul { margin: 0; padding-left: 1.1em; display: flex; flex-direction: column; gap: 6px; }
+code { font-family: var(--font-mono); font-size: 0.88em; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>STOMPBOX footswitch wiring</h1>
+    <p class="sub">Five momentary footswitches on the Raspberry Pi Zero W GPIO header. Each switch has two wires: one to its GPIO pin, one to ground. No resistors needed (the Pi's internal pull-ups are used).</p>
+  </header>
+
+  <div class="sheet">
+    <svg viewBox="0 0 900 640" role="img" aria-label="Wiring diagram: MOD to pin 11, DELAY to pin 13, REVERB to pin 15, EQ to pin 16, GATE to pin 18, grounds to pins 9 and 20">
+      <!-- header board -->
+      <rect x="398" y="92" width="124" height="380" rx="8" fill="var(--board)"/>
+      <text x="460" y="80" text-anchor="middle" font-size="12" fill="var(--muted)">GPIO HEADER · pins 1–20 (21–40 unused)</text>
+            <text x="430" y="108" text-anchor="middle" font-size="9" fill="var(--board-fg)">odd</text>
+      <text x="490" y="108" text-anchor="middle" font-size="9" fill="var(--board-fg)">even</text>
+      <g id="pins"></g>
+
+      <!-- ground wires (neutral) -->
+      <g fill="none" stroke="var(--gnd)" stroke-width="2.5" stroke-linejoin="round" stroke-dasharray="7 4">
+        <path d="M419 264 H24 V540"/>
+        <path d="M24 300 H50 M24 420 H50 M24 540 H50"/>
+        <path d="M501 444 H530 V600 H876 V372"/>
+        <path d="M850 372 H876 M850 500 H876"/>
+      </g>
+      <text x="200" y="256" font-size="12" fill="var(--fg)" text-anchor="middle">GND · pin 9</text>
+      <text x="700" y="592" font-size="12" fill="var(--fg)" text-anchor="middle">GND · pin 20</text>
+
+      <!-- signal wires -->
+      <g fill="none" stroke-width="3" stroke-linejoin="round">
+        <path d="M190 300 H419" stroke="var(--mod)"/>
+        <path d="M190 420 H350 V336 H419" stroke="var(--del)"/>
+        <path d="M190 540 H370 V372 H419" stroke="var(--rev)"/>
+        <path d="M710 372 H501" stroke="var(--eq)"/>
+        <path d="M710 500 H560 V408 H501" stroke="var(--gate)"/>
+      </g>
+      <g font-size="12" font-weight="600">
+        <text x="300" y="292" text-anchor="middle" fill="var(--mod)">GPIO17 · pin 11</text>
+        <text x="270" y="412" text-anchor="middle" fill="var(--del)">GPIO27 · pin 13</text>
+        <text x="280" y="532" text-anchor="middle" fill="var(--rev)">GPIO22 · pin 15</text>
+        <text x="606" y="364" text-anchor="middle" fill="var(--eq)">GPIO23 · pin 16</text>
+        <text x="636" y="492" text-anchor="middle" fill="var(--gate)">GPIO24 · pin 18</text>
+      </g>
+
+      <!-- switches -->
+      <g id="switches"></g>
+
+      <!-- legend -->
+      <g font-size="11" fill="var(--muted)">
+        <line x1="40" y1="616" x2="70" y2="616" stroke="var(--fg)" stroke-width="3"/>
+        <text x="78" y="620">signal (colour per switch)</text>
+        <line x1="260" y1="616" x2="290" y2="616" stroke="var(--gnd)" stroke-width="2.5" stroke-dasharray="7 4"/>
+        <text x="298" y="620">ground (shared)</text>
+      </g>
+    </svg>
+  </div>
+
+  <div class="grid">
+    <section>
+      <h2>Connections</h2>
+      <table>
+        <thead><tr><th>Footswitch</th><th>GPIO</th><th>Pin</th><th>Ground pin</th></tr></thead>
+        <tbody>
+          <tr><td><span class="sw"><span class="dot" style="background:var(--mod)"></span>MOD</span></td><td class="mono">GPIO17</td><td class="mono">11</td><td class="mono">9</td></tr>
+          <tr><td><span class="sw"><span class="dot" style="background:var(--del)"></span>DELAY</span></td><td class="mono">GPIO27</td><td class="mono">13</td><td class="mono">9</td></tr>
+          <tr><td><span class="sw"><span class="dot" style="background:var(--rev)"></span>REVERB</span></td><td class="mono">GPIO22</td><td class="mono">15</td><td class="mono">9</td></tr>
+          <tr><td><span class="sw"><span class="dot" style="background:var(--eq)"></span>EQ</span></td><td class="mono">GPIO23</td><td class="mono">16</td><td class="mono">20</td></tr>
+          <tr><td><span class="sw"><span class="dot" style="background:var(--gate)"></span>GATE</span></td><td class="mono">GPIO24</td><td class="mono">18</td><td class="mono">20</td></tr>
+        </tbody>
+      </table>
+    </section>
+    <section>
+      <h2>Notes</h2>
+      <ul>
+        <li><strong>Pin 1</strong> has the square solder pad, at the end of the header next to the SD-card slot. Pin numbers count in pairs from there: odd pins on the inner row, even pins on the board edge.</li>
+        <li>All ground pins (6, 9, 14, 20, 25, 30, 34, 39) are the same. You can also run one shared ground wire to all five switches.</li>
+        <li>Use <strong>momentary</strong> (soft-touch, normally open) switches. Each switch is just two lugs, so the orientation doesn't matter.</li>
+        <li><strong>Never</strong> wire a switch to the 3.3 V (pins 1, 17) or 5 V (pins 2, 4) pins.</li>
+        <li>Each press toggles its effect on the JME STOMPBOX over Bluetooth MIDI (CC 3 MOD, 4 DELAY, 5 REVERB, 7 EQ, 6 GATE).</li>
+      </ul>
+    </section>
+  </div>
+</div>
+
+<script>
+(function () {
+  var NS = "http://www.w3.org/2000/svg";
+  function el(tag, attrs, text) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  var used = { 9: "var(--gnd)", 11: "var(--mod)", 13: "var(--del)", 15: "var(--rev)",
+               16: "var(--eq)", 18: "var(--gate)", 20: "var(--gnd)" };
+  var pins = document.getElementById("pins");
+  for (var r = 1; r <= 10; r++) {
+    var y = 120 + (r - 1) * 36;
+    [[2 * r - 1, 430], [2 * r, 490]].forEach(function (p) {
+      var n = p[0], color = used[n];
+      pins.appendChild(el("circle", { cx: p[1], cy: y, r: color ? 12 : 10,
+        fill: color || "var(--pin-off)", stroke: color ? "var(--board-fg)" : "none", "stroke-width": 2 }));
+      pins.appendChild(el("text", { x: p[1], y: y + 3.5, "text-anchor": "middle", "font-size": 10,
+        "font-weight": 600, fill: color ? "var(--paper)" : "var(--board)" }, n));
+    });
+  }
+  var sw = [
+    { name: "MOD", x: 50, y: 300, c: "var(--mod)", left: true },
+    { name: "DELAY", x: 50, y: 420, c: "var(--del)", left: true },
+    { name: "REVERB", x: 50, y: 540, c: "var(--rev)", left: true },
+    { name: "EQ", x: 710, y: 372, c: "var(--eq)", left: false },
+    { name: "GATE", x: 710, y: 500, c: "var(--gate)", left: false }
+  ];
+  var g = document.getElementById("switches");
+  sw.forEach(function (s) {
+    g.appendChild(el("rect", { x: s.x, y: s.y - 24, width: 140, height: 48, rx: 8,
+      fill: "var(--paper)", stroke: s.c, "stroke-width": 2.5 }));
+    g.appendChild(el("circle", { cx: s.x + 112, cy: s.y, r: 11, fill: "none", stroke: s.c, "stroke-width": 2 }));
+    g.appendChild(el("circle", { cx: s.x + 112, cy: s.y, r: 5, fill: s.c }));
+    g.appendChild(el("text", { x: s.x + 14, y: s.y + 5, "font-size": 13, "font-weight": 600, fill: s.c }, s.name));
+    var sigX = s.left ? s.x + 140 : s.x, gndX = s.left ? s.x : s.x + 140;
+    g.appendChild(el("circle", { cx: sigX, cy: s.y, r: 4, fill: s.c }));
+    g.appendChild(el("circle", { cx: gndX, cy: s.y, r: 4, fill: "var(--gnd)" }));
+  });
+})();
+</script>
+</html>
