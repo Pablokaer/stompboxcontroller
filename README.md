@@ -6,11 +6,13 @@ Wireless footswitch controller for the **JME STOMPBOX** guitar pedal, built on a
 Footswitches wired to the Pi turn effects on and off on the pedal over
 Bluetooth MIDI. The Pi broadcasts its own Wi-Fi network with a settings page
 where you choose what each footswitch does (tap, hold, or several pressed
-together) and connect the Pi to other Wi-Fi networks.
+together), which Bluetooth device it connects to, and which Wi-Fi networks it joins.
 
 ![Settings page](docs/images/settings-page-overview.png)
 
-> **Current version: 1.0.0** – see [CHANGELOG.md](CHANGELOG.md). This README is
+_The settings page on a phone (example data – a second pedal and a WIDI adapter illustrate the device list)._
+
+> **Current version: 1.1.0** – see [CHANGELOG.md](CHANGELOG.md). This README is
 > updated with every change to the project (see [Keeping this README current](#keeping-this-readme-current)).
 
 ---
@@ -25,24 +27,29 @@ together) and connect the Pi to other Wi-Fi networks.
 6. [First start](#first-start)
 7. [The settings page](#the-settings-page)
 8. [How button actions work](#how-button-actions-work)
-9. [Wi-Fi and the hotspot](#wi-fi-and-the-hotspot)
-10. [Command line: `stomp`](#command-line-stomp)
-11. [MIDI map](#midi-map)
-12. [Updating and uninstalling](#updating-and-uninstalling)
-13. [Files and services on the Pi](#files-and-services-on-the-pi)
-14. [Troubleshooting](#troubleshooting)
-15. [Project structure and development](#project-structure-and-development)
-16. [Keeping this README current](#keeping-this-readme-current)
+9. [Bluetooth devices](#bluetooth-devices)
+10. [Wi-Fi and the hotspot](#wi-fi-and-the-hotspot)
+11. [Command line: `stomp`](#command-line-stomp)
+12. [MIDI map](#midi-map)
+13. [Updating and uninstalling](#updating-and-uninstalling)
+14. [Files and services on the Pi](#files-and-services-on-the-pi)
+15. [Troubleshooting](#troubleshooting)
+16. [Project structure and development](#project-structure-and-development)
+17. [Keeping this README current](#keeping-this-readme-current)
 
 ---
 
 ## What it does
 
 - **Connects to the pedal by itself.** On first start the Pi finds the JME
-  STOMPBOX over Bluetooth, pairs with its MIDI side and remembers it. From then
-  on it only connects to that pedal (by its hardware address), so another pedal
-  with the same name nearby is ignored. It reconnects automatically whenever
-  the pedal is switched on again.
+  STOMPBOX over Bluetooth, pairs with its MIDI side and saves it as the
+  **startup device**. It connects to it at every start and reconnects whenever
+  the pedal is switched on again. Devices are identified by their hardware
+  address, so another pedal with the same name nearby is ignored.
+- **Choose the Bluetooth device** from the settings page, like choosing a Wi-Fi
+  network: search for nearby Bluetooth MIDI devices, **connect now** to one, or
+  make it the device that is **always connected at startup**. Saved devices can
+  be switched between or forgotten.
 - **4 or 5 footswitches** on the Pi's GPIO pins, each with:
   - a **press** action and a **hold** action;
   - **combos**: two or more footswitches pressed together do something else.
@@ -237,9 +244,11 @@ when the packages are already there, 5–10 minutes on a fresh Pi Zero W.
 
 ## First start
 
-1. **Pedal:** switch the JME STOMPBOX on near the Pi. The Pi scans, finds a device
-   named `JME STOMPBOX` that offers Bluetooth MIDI, connects and saves it. If
-   several are in range, it picks the strongest signal. Takes ~20–60 seconds.
+1. **Pedal:** switch the JME STOMPBOX on near the Pi. With no device saved yet,
+   the Pi scans, finds a device named `JME STOMPBOX` that offers Bluetooth MIDI,
+   connects and saves it as the startup device. If several are in range, it
+   picks the strongest signal. Takes ~20–60 seconds. To use a different device,
+   see [Bluetooth devices](#bluetooth-devices).
 2. **Hotspot:** join **`STOMPBOX-CTRL`** (password **`stompbox123`**) from a
    phone or laptop. The settings page opens automatically, or shows a "Sign in
    to network" notification. If the phone asks whether to stay on a network
@@ -256,7 +265,7 @@ hotspot appears a little after power-on.
 
 | Section | What it does |
 |---|---|
-| **Pedal** | Pedal name, address and connection state; which effects are on now. **Pair a different pedal** (tap twice) forgets the current pedal and searches for a new one. |
+| **Pedal · Bluetooth** | The device in use (name, address, connection state), the **startup device**, and which effects are on now. **Find devices** lists nearby Bluetooth MIDI devices: tap one for **Connect now** or **Connect + always at startup**. **Saved devices**: Connect now, Use at startup, Forget (tap twice). See [Bluetooth devices](#bluetooth-devices). |
 | **Wi-Fi** | The network the Pi is on and the page's address there; hotspot status. **Find networks** lists nearby networks – tap one, enter the password, Connect. **Hidden network…** for networks that don't broadcast their name. **Saved networks**: reconnect or forget (tap twice). |
 | **Footswitch profile** | **4 buttons** or **5 buttons**. Each profile keeps its own settings; the active one is used. |
 | **Buttons** | Per footswitch: GPIO pin, **Press** action, **Hold** action. |
@@ -290,6 +299,40 @@ the 5-button profile); no holds, no combos.
   of each other. Their single actions are then skipped until they're released.
 - Footswitches are debounced (20 ms) and polled every 5 ms.
 
+## Bluetooth devices
+
+The Pi keeps a list of **saved devices** and one **startup device**.
+
+| Term | Meaning |
+|---|---|
+| **Startup device** | Connected automatically every time the Pi starts, and reconnected whenever it comes back in range (e.g. the pedal is switched off and on). |
+| **Device in use** | The one the footswitches control right now. Normally the startup device. |
+| **Saved devices** | Every device you've connected to. Switch between them without searching again. |
+
+On the settings page (**Pedal · Bluetooth**):
+
+1. **Find devices** searches for about 10 seconds and lists nearby **Bluetooth MIDI**
+   devices (other Bluetooth devices – phones, speakers – are counted but hidden).
+   The pedal's second, audio-only Bluetooth address is not a MIDI device, so it
+   never appears.
+2. Tap a device:
+   - **Connect now** – switch to it right away. The startup device doesn't change,
+     so after a restart the Pi goes back to the startup device.
+   - **Connect + always at startup** – switch to it and make it the startup device.
+3. **Saved devices**: **Connect now**, **Use at startup**, or **Forget** (tap twice).
+   Forgetting the startup device makes the next saved device the startup device.
+   Forgetting the last one makes the Pi search for a JME STOMPBOX again by itself.
+
+Notes:
+
+- Only one device is connected at a time.
+- The effect commands (CC numbers) are the JME STOMPBOX's. Another Bluetooth MIDI
+  device can be connected, but it only reacts if it uses the same messages.
+- When you switch devices, the Pi forgets the effect on/off states it knew and
+  assumes "all on" until the new device reports its state.
+- If the startup device is off or out of range, the Pi keeps trying in the
+  background (every few seconds at first, then every 20 seconds).
+
 ## Wi-Fi and the hotspot
 
 - The Pi Zero W has **one Wi-Fi radio**. It stays connected to a normal network
@@ -318,7 +361,7 @@ the 5-button profile); no holds, no combos.
 Run on the Pi. It talks to the running service, so it shares the pedal connection and state.
 
 ```bash
-stomp status            # version, pedal, MIDI port, effects, profile
+stomp status            # version, device in use, saved devices, MIDI port, effects, profile
 stomp mod off           # mod | delay | reverb | gate | eq   +  on | off | toggle
 stomp all on            # all effects on | off
 stomp preset 12         # go to preset 12   (or: next | prev)
@@ -360,7 +403,7 @@ The installed version is in `/opt/stompbox/version` (and the Git commit in
 | `/usr/local/bin/stompbox-ap.sh` | Starts / stops the hotspot |
 | `/usr/local/bin/stompbox-update` | Update command |
 | `/etc/stompbox/config.json` | Button settings (written by the page) |
-| `/etc/stompbox/pedal.json` | The paired pedal's address (delete it, or use the page, to pair another pedal) |
+| `/etc/stompbox/pedal.json` | Saved Bluetooth devices and the startup device (`{"default": "<address>", "devices": [...]}`); delete it to make the Pi search for a JME STOMPBOX again |
 | `/etc/stompbox/hotspot.conf` | Hotspot name, password, country |
 | `/etc/stompbox/dnsmasq.conf`, `captive.nft` | Hotspot addresses/DNS and captive-portal rules |
 | `/etc/NetworkManager/conf.d/stompbox-unmanaged-uap0.conf` | Keeps NetworkManager away from the hotspot interface |
@@ -373,7 +416,8 @@ Logs: `journalctl -u stompbox-ctrl -f` and `journalctl -u stompbox-ap`.
 
 | Problem | What to do |
 |---|---|
-| **Pedal never connects** | Make sure it's on and near the Pi. `stomp status` shows *searching* / *connecting*. Check `journalctl -u stompbox-ctrl -f`. If a different JME STOMPBOX was paired before, use **Pair a different pedal** on the page. |
+| **Pedal never connects** | Make sure it's on and near the Pi. `stomp status` shows *searching* / *connecting*. Check `journalctl -u stompbox-ctrl -f`. If a different JME STOMPBOX was saved before, use **Find devices** on the page and choose **Connect + always at startup** on the right one, or forget the old one. |
+| **"Find devices" doesn't show the pedal** | It must be switched on and close to the Pi. A pedal connected to another device (e.g. a phone app) may not advertise – disconnect it there first. Search again. |
 | **Commands sent but nothing changes on the pedal** | The pedal doesn't confirm commands. Check `stomp status` shows a MIDI port. Try `stomp mod toggle` and watch the pedal's MOD light. |
 | **A footswitch fires by itself / test-pad dot always lit** | That pin reads "pressed" with nothing pressed: something connects it to ground (wire, solder bridge, damaged pin). The controller ignores it at start-up, but fix the wiring or move that footswitch to another GPIO on the page. (On the prototype Pi, GPIO22 / pin 15 had this fault.) |
 | **Hotspot doesn't appear** | `systemctl status stompbox-ap`, `journalctl -u stompbox-ap`. Wait for the full boot (~2.5 min). `sudo systemctl restart stompbox-ap`. |
@@ -399,14 +443,15 @@ stompboxcontroller/
 │   ├── case/               5-buttons, 4-buttons, 4-buttons-slim: STL + SCAD + preview
 │   └── wiring/             wiring diagram (PNG + HTML)
 ├── docs/                   MIDI map, images
-├── tests/test_engine.py    footswitch logic + settings validation tests
+├── tests/                  footswitch logic, settings validation, Bluetooth device list
 ├── CHANGELOG.md
 └── AGENTS.md               rules for anyone (human or AI) changing the project
 ```
 
 **How it works (stompboxd.py)**
 
-- `Pedal` – keeps Bluetooth on, finds / trusts / connects the pedal, saves its address.
+- `Pedal` – keeps Bluetooth on; saved devices, startup device and device in use;
+  searches, trusts and connects; finds a JME STOMPBOX by itself when nothing is saved.
 - `Midi` – finds the pedal's ALSA port, sends with `aseqsend`, listens with
   `aseqdump` to track current effect values and preset.
 - `Gpio` + `Engine` – polls the footswitch pins (lgpio, pull-ups, active low),
@@ -425,7 +470,11 @@ stompboxcontroller/
 | POST | `/api/action` | an action, e.g. `{"type":"toggle","effect":"mod"}` |
 | POST | `/api/cc` | `{"cc":6,"value":64}` raw Control Change |
 | POST | `/api/sim` | `{"button":0,"down":true}` test-pad press/release |
-| POST | `/api/pedal/forget` | forget the pedal and search again |
+| POST | `/api/bt/scan` | search ~10 s; nearby devices `{mac,name,rssi,midi,saved,startup,active,connected}` |
+| POST | `/api/bt/connect` | `{"mac":"…","startup":true}` connect now (and optionally make it the startup device) |
+| POST | `/api/bt/startup` | `{"mac":"…"}` make a saved device the startup device |
+| POST | `/api/bt/forget` | `{"mac":"…"}` forget a saved device |
+| POST | `/api/pedal/forget` | forget the device in use |
 | GET | `/api/wifi` | current network, hotspot, saved networks, last operation |
 | POST | `/api/wifi/scan` · `/connect` · `/up` · `/forget` | scan; join `{ssid,password,hidden}`; reconnect / forget `{name}` |
 

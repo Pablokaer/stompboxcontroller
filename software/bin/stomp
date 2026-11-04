@@ -44,7 +44,10 @@ def main(argv):
         s = call("/api/status")
         p = s.get("pedal", {})
         print(f"stompboxd {s.get('version', '?')}")
-        print(f"pedal: {p.get('name')} {p.get('mac') or '(not paired yet)'} – {p.get('state')}")
+        print(f"device: {p.get('name')} {p.get('mac') or '(none yet)'} – {p.get('state')}")
+        for d in p.get("devices", []):
+            tags = [t for t, on in (("startup", d.get("startup")), ("in use", d.get("active"))) if on]
+            print(f"  saved: {d['name']} {d['mac']}" + (f"  [{', '.join(tags)}]" if tags else ""))
         print(f"MIDI port: {s.get('midi_port') or 'none'}   preset: {s.get('program')}")
         print("effects: " + "  ".join(f"{k.upper()}={'on' if v else 'off'}" for k, v in s["effects"].items()))
         print(f"profile: {s.get('profile')} buttons   GPIO: {s.get('gpio')}")

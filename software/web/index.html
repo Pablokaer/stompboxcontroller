@@ -90,8 +90,12 @@ select:focus, input:focus, button:focus-visible { outline: 2px solid var(--accen
 .op { margin-top: 10px; font-size: .88rem; }
 .op.working { color: var(--accent); } .op.ok { color: var(--ok); } .op.error { color: var(--bad); }
 .actions-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
-.pedal-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
-.pedal-info { font: .85rem var(--mono); color: var(--muted); overflow-wrap: anywhere; min-width: 0; }
+.tag { font: .7rem var(--mono); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; color: var(--muted); white-space: nowrap; }
+.tag.on { color: var(--accent); border-color: var(--accent); }
+.tag.ok { color: var(--ok); border-color: var(--ok); }
+.net-h .mac { font: .72rem var(--mono); color: var(--muted); display: block; }
+#bt-list .net-h, #bt-saved .net-h { flex-wrap: wrap; row-gap: 6px; }
+#bt-list .net-h .name, #bt-saved .net-h .name { white-space: normal; flex: 1 1 150px; }
 footer { color: var(--muted); font-size: .75rem; text-align: center; }
 </style>
 </head>
@@ -103,12 +107,19 @@ footer { color: var(--muted); font-size: .75rem; text-align: center; }
   </header>
 
   <section>
-    <h2>Pedal</h2>
-    <div class="pedal-row">
-      <span id="pedal-info" class="pedal-info">checking…</span>
-      <button class="small-btn" id="pedal-forget" type="button">Pair a different pedal</button>
+    <h2>Pedal · Bluetooth</h2>
+    <dl class="kv" id="bt-now"><dt>Device</dt><dd>checking…</dd></dl>
+    <div class="fx" id="fx" style="margin-top:12px"></div>
+    <div class="actions-row">
+      <button class="small-btn primary" id="bt-scan" type="button">Find devices</button>
     </div>
-    <div class="fx" id="fx"></div>
+    <div class="nets" id="bt-list"></div>
+    <div id="bt-saved-wrap" hidden>
+      <h2 style="margin-top:14px">Saved devices</h2>
+      <div class="nets" id="bt-saved"></div>
+    </div>
+    <p class="op" id="bt-op" hidden></p>
+    <p class="hint">The <b>startup device</b> is connected every time the Pi starts, and reconnected whenever it comes back in range. <b>Connect now</b> switches to another device until the next restart. Only Bluetooth MIDI devices are listed; the effect commands are made for the JME STOMPBOX.</p>
   </section>
 
   <section>
@@ -375,17 +386,76 @@ $("#wifi-other").onclick = () => {
 };
 loadWifi(); setInterval(loadWifi, 4000);
 
-// pair a different pedal (two taps, so it can't happen by accident)
-$("#pedal-forget").onclick = async () => {
-  const b = $("#pedal-forget");
-  if (!b.dataset.armed) {
-    b.dataset.armed = 1; b.textContent = "Tap again: forget this pedal";
-    setTimeout(() => { delete b.dataset.armed; b.textContent = "Pair a different pedal"; }, 4000);
-    return;
+// ------------------------------------------------------------- Bluetooth
+const BT_STATE = {connected: "connected", connecting: "connecting… (is it switched on?)",
+  searching: "searching for a JME STOMPBOX… switch the pedal on",
+  "no device selected": "no device selected", "bluetooth starting": "Bluetooth starting…"};
+const rssiPct = r => r == null ? 0 : Math.max(5, Math.min(100, Math.round((r + 95) * 2.2)));
+function btTags(d, connected) {
+  let t = "";
+  if (d.startup) t += `<span class="tag on">startup</span>`;
+  if (d.active) t += `<span class="tag ${connected ? "ok" : ""}">${connected ? "connected" : "in use"}</span>`;
+  return t;
+}
+function btOp(state, msg) { const el = $("#bt-op"); el.hidden = !msg; el.className = "op " + state; el.textContent = msg; }
+async function btDo(url, body, msg) {
+  try { await post(url, body); btOp("working", msg); setTimeout(() => btOp("", ""), 8000); }
+  catch (e) { btOp("error", e.message); }
+}
+function twoTap(btn, label, confirmLabel, fn) {
+  btn.textContent = label;
+  btn.onclick = () => {
+    if (btn.dataset.armed) return fn();
+    btn.dataset.armed = 1; btn.textContent = confirmLabel;
+    setTimeout(() => { delete btn.dataset.armed; btn.textContent = label; }, 4000);
+  };
+}
+function smallBtn(label, primary) { const b = document.createElement("button"); b.type = "button"; b.className = "small-btn" + (primary ? " primary" : ""); b.textContent = label; return b; }
+function renderBt(p) {
+  $("#bt-now").innerHTML =
+    `<dt>Device</dt><dd>${p.mac ? esc(p.name) + " · " + esc(p.mac) : "none"} · ${esc(BT_STATE[p.state] || p.state)}</dd>` +
+    `<dt>At startup</dt><dd>${p.default ? esc((p.devices.find(d => d.mac === p.default) || {}).name || p.default) : "first JME STOMPBOX found"}</dd>`;
+  const sv = $("#bt-saved"); $("#bt-saved-wrap").hidden = !p.devices.length;
+  const key = JSON.stringify([p.devices, p.connected]);
+  if (sv.dataset.key === key) return;            // unchanged: keep buttons and pending "tap again"
+  sv.dataset.key = key; sv.innerHTML = "";
+  for (const d of p.devices) {
+    const row = document.createElement("div"); row.className = "net";
+    row.innerHTML = `<div class="net-h"><span class="name">${esc(d.name)} <span class="mac">${esc(d.mac)}</span></span>${btTags(d, p.connected)}</div>`;
+    const acts = document.createElement("div"); acts.className = "join";
+    if (!d.active) { const b = smallBtn("Connect now"); b.onclick = () => btDo("/api/bt/connect", {mac: d.mac}, `switching to ${d.name}…`); acts.append(b); }
+    if (!d.startup) { const b = smallBtn("Use at startup"); b.onclick = () => btDo("/api/bt/startup", {mac: d.mac}, `${d.name} is now the startup device`); acts.append(b); }
+    const f = smallBtn(""); twoTap(f, "Forget", "Tap again to forget", () => btDo("/api/bt/forget", {mac: d.mac}, `forgetting ${d.name}…`));
+    acts.append(f); row.append(acts); sv.append(row);
   }
-  delete b.dataset.armed; b.textContent = "Pair a different pedal";
-  await fetch("/api/pedal/forget", {method: "POST", body: "{}"});
-  $("#pedal-info").textContent = "searching for a JME STOMPBOX… switch the pedal on";
+}
+$("#bt-scan").onclick = async () => {
+  const btn = $("#bt-scan"), list = $("#bt-list");
+  btn.disabled = true; btn.textContent = "Searching… (about 10 s)";
+  try {
+    const j = await post("/api/bt/scan");
+    const midi = j.devices.filter(d => d.midi), others = j.devices.length - midi.length;
+    list.innerHTML = "";
+    if (!midi.length) list.innerHTML = `<p class="hint">No Bluetooth MIDI devices found. Make sure the pedal is on and close to the Pi, then try again.</p>`;
+    for (const d of midi) {
+      const row = document.createElement("div"); row.className = "net";
+      const h = document.createElement("button"); h.type = "button"; h.className = "net-h";
+      h.innerHTML = `${d.rssi == null ? "" : bars(rssiPct(d.rssi))}<span class="name">${esc(d.name)} <span class="mac">${esc(d.mac)}</span></span>${d.saved ? '<span class="tag">saved</span>' : ""}${btTags(d, d.connected)}`;
+      h.onclick = () => {
+        const ex = row.querySelector(".join"); if (ex) { ex.remove(); return; }
+        document.querySelectorAll("#bt-list .join").forEach(x => x.remove());
+        const acts = document.createElement("div"); acts.className = "join";
+        const now = smallBtn("Connect now");
+        now.onclick = () => btDo("/api/bt/connect", {mac: d.mac, name: d.name}, `connecting to ${d.name}…`);
+        const always = smallBtn("Connect + always at startup", true);
+        always.onclick = () => btDo("/api/bt/connect", {mac: d.mac, name: d.name, startup: true}, `connecting to ${d.name} – it will also connect at every start`);
+        acts.append(now, always); row.append(acts);
+      };
+      row.append(h); list.append(row);
+    }
+    if (others) list.insertAdjacentHTML("beforeend", `<p class="hint">${others} other Bluetooth device${others > 1 ? "s" : ""} nearby (not MIDI) hidden.</p>`);
+  } catch (e) { list.innerHTML = `<p class="op error">${esc(e.message)}</p>`; }
+  btn.disabled = false; btn.textContent = "Find devices";
 };
 
 async function load() {
@@ -406,11 +476,7 @@ async function poll() {
     const s = await (await fetch("/api/status")).json();
     $("#conn-led").className = "led " + (s.pedal_connected ? "on" : "bad");
     $("#conn-txt").textContent = s.pedal_connected ? `Pedal connected${s.program != null ? " · preset " + s.program : ""}` : "Pedal not connected";
-    if (s.pedal) {
-      const st = {connected: "connected", connecting: "connecting… (is the pedal on?)", searching: "searching for a JME STOMPBOX… switch the pedal on"}[s.pedal.state] || s.pedal.state;
-      $("#pedal-info").textContent = `${s.pedal.name}${s.pedal.mac ? " · " + s.pedal.mac : ""} · ${st}`;
-      $("#pedal-forget").hidden = !s.pedal.mac;
-    }
+    if (s.pedal) renderBt(s.pedal);
     if (s.version) $("#version").textContent = "v" + s.version;
     $("#fx").innerHTML = EFFECTS.map(([e,n]) => `<span class="pill"><span class="led ${s.effects[e] ? "amber" : ""}"></span>${n}</span>`).join("");
     $("#log").textContent = s.log.join("\n");

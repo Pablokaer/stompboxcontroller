@@ -145,7 +145,7 @@ say "Done – STOMPBOX Controller $VERSION is running"
 info "Hotspot:   $SSID   ->  http://192.168.4.1"
 [ -n "$IP" ] && info "This network: http://$IP"
 if [ -f $ETC/pedal.json ]; then
-  info "Pedal:     $(sed -n 's/.*"mac": "\([^"]*\)".*/\1/p' $ETC/pedal.json) (already paired)"
+  info "Pedal:     startup device $(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d.get("default") or d.get("mac") or "none")' $ETC/pedal.json) (saved)"
 else
   info "Pedal:     switch the JME STOMPBOX on – it pairs automatically within a minute"
 fi

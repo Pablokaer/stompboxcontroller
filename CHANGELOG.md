@@ -7,6 +7,22 @@ Format: [Keep a Changelog](https://keepachangelog.com/), versions follow `VERSIO
 
 _Nothing yet._
 
+## [1.1.0] – 2026-11-04
+
+### Added
+- **Bluetooth device manager** on the settings page (*Pedal · Bluetooth*): search for nearby Bluetooth MIDI devices, **Connect now**, **Connect + always at startup**, and a list of saved devices with **Use at startup** and **Forget**.
+- `pedal.json` now stores several saved devices and a startup device; the 1.0 format is read and converted automatically.
+- API: `/api/bt/scan`, `/api/bt/connect`, `/api/bt/startup`, `/api/bt/forget`; `/api/status` reports the device list.
+- `stomp status` lists saved devices and marks the startup device and the one in use.
+- Tests for the device list (`tests/test_devices.py`).
+
+### Changed
+- The MIDI port is found by the name of the device in use (not a fixed name).
+- Effect states are reset to "unknown / all on" when switching to another device.
+
+### Removed
+- The single "Pair a different pedal" button (replaced by the device manager).
+
 ## [1.0.0] – 2026-11-04
 
 First release, built and tested on a Raspberry Pi Zero W Rev 1.1 (Raspberry Pi OS Trixie) with a JME STOMPBOX.

@@ -14,7 +14,7 @@ import json, os, re, socket, subprocess, threading, time, shutil
 from collections import deque
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 ETC = os.environ.get("STOMPBOX_ETC", "/etc/stompbox")
 CONFIG_PATH = os.environ.get("STOMPBOX_CONFIG", os.path.join(ETC, "config.json"))
 PEDAL_PATH = os.path.join(ETC, "pedal.json")
@@ -23,7 +23,6 @@ WEB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
 HTTP_PORT = int(os.environ.get("STOMPBOX_PORT", "80"))
 PEDAL_NAME = "JME STOMPBOX"                       # Bluetooth name the pedal advertises
 MIDI_UUID = "03b80e5a-ede8-4b33-a751-6ce34ec4c700"  # standard BLE-MIDI service
-PORT_NAME = PEDAL_NAME                            # ALSA port name BlueZ creates for it
 MIDI_CH = 0  # channel 1
 
 # effect -> (CC number, default "on" value). Low bits = effect type, bit 64 = on.
@@ -161,26 +160,77 @@ def run_cmd(args, timeout=30):
         return 127, str(e)
 
 
-class Pedal:
-    """Finds the JME STOMPBOX over Bluetooth and keeps it connected.
+MAC_RE = re.compile(r"^[0-9A-F]{2}(:[0-9A-F]{2}){5}$")
 
-    First run: scans for a device named PEDAL_NAME that offers BLE-MIDI, picks the
-    strongest one, and saves its address to pedal.json. From then on it only ever
-    connects to that address, so other pedals with the same name are ignored.
+
+def parse_pedal_file(d):
+    """pedal.json -> (devices, startup_mac). Also reads the 1.0 format {"mac": ...}."""
+    devices = []
+    if isinstance(d.get("devices"), list):
+        for x in d["devices"]:
+            mac = str(x.get("mac", "")).upper()
+            if MAC_RE.match(mac) and mac not in [y["mac"] for y in devices]:
+                devices.append({"mac": mac, "name": x.get("name") or mac, "added": x.get("added", "")})
+        default = str(d.get("default") or "").upper() or None
+        if default not in [y["mac"] for y in devices]:
+            default = devices[0]["mac"] if devices else None
+        return devices, default
+    mac = str(d.get("mac", "")).upper()
+    if MAC_RE.match(mac):
+        return [{"mac": mac, "name": d.get("name") or PEDAL_NAME, "added": d.get("paired", "")}], mac
+    return [], None
+
+
+class Pedal:
+    """Bluetooth MIDI devices: which one to use, and keeping it connected.
+
+    pedal.json holds the saved devices and the *startup device* – the one the Pi
+    connects to at every start and keeps reconnecting to. "Connect now" switches
+    to another device right away; it only becomes the startup device when asked.
+    With no device saved at all, the Pi looks for a JME STOMPBOX by itself and
+    saves it as the startup device.
+    Devices are identified by their hardware address, so another device with the
+    same name is never used by accident.
     """
 
-    def __init__(self):
-        self.mac = None
+    def __init__(self, start=True):
+        self.devices, self.default = [], None
         self.state = "starting"
         self.connected = False
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
+        self.bt_lock = threading.Lock()      # one Bluetooth scan at a time
+        self.wake = threading.Event()        # interrupts waits when the user changes something
+        self.misses = 0
         try:
             with open(PEDAL_PATH) as f:
-                self.mac = json.load(f).get("mac")
+                self.devices, self.default = parse_pedal_file(json.load(f))
         except (OSError, ValueError):
             pass
-        threading.Thread(target=self._loop, daemon=True).start()
+        self.target = self.default           # device kept connected right now
+        if start:
+            threading.Thread(target=self._loop, daemon=True).start()
 
+    # ------------------------------------------------------------- storage
+    def _save(self):
+        with self.lock:
+            data = {"default": self.default, "devices": self.devices}
+        os.makedirs(ETC, exist_ok=True)
+        tmp = PEDAL_PATH + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(data, f, indent=2)
+        os.replace(tmp, PEDAL_PATH)
+
+    def name_of(self, mac):
+        for d in self.devices:
+            if d["mac"] == mac:
+                return d["name"]
+        return None
+
+    def target_name(self):
+        """Name of the device in use – BlueZ names its ALSA MIDI port after it."""
+        return self.name_of(self.target) or PEDAL_NAME
+
+    # ------------------------------------------------------------ bluetooth
     @staticmethod
     def _bt_power():
         for r in __import__("glob").glob("/sys/class/rfkill/rfkill*"):
@@ -196,37 +246,47 @@ class Pedal:
             return False
         return True
 
-    def _is_connected(self, mac):
+    @staticmethod
+    def _info(mac):
         rc, out = run_cmd(["bluetoothctl", "info", mac], 10)
-        return "Connected: yes" in out
+        name = re.search(r"^\s*Name: (.+)$", out, re.M) or re.search(r"^\s*Alias: (.+)$", out, re.M)
+        rssi = re.search(r"RSSI: .*?\((-?\d+)\)", out)
+        return {"mac": mac, "name": name.group(1).strip() if name else mac,
+                "rssi": int(rssi.group(1)) if rssi else None,
+                "midi": MIDI_UUID in out.lower(),
+                "connected": "Connected: yes" in out}
 
-    def _find_candidates(self):
-        rc, out = run_cmd(["bluetoothctl", "devices"], 10)
-        found = []
-        for m in re.finditer(r"^Device ([0-9A-F:]{17}) (.+)$", out, re.M):
-            mac, name = m.group(1), m.group(2).strip()
-            if name != PEDAL_NAME:
+    def _is_connected(self, mac):
+        return self._info(mac)["connected"]
+
+    def _scan(self, secs=8):
+        """Bluetooth discovery. Returns {address: signal dBm or None} for every device
+        seen during this scan (signal strength is only reported while scanning)."""
+        with self.bt_lock:
+            rc, out = run_cmd(["bluetoothctl", "--timeout", str(secs), "scan", "on"], secs + 10)
+        seen = {}
+        for line in re.sub(r"\x1b\[[0-9;]*m", "", out).splitlines():
+            m = re.search(r"\[(NEW|CHG)\] Device ([0-9A-Fa-f:]{17})(.*)", line)
+            if not m:
                 continue
-            rc, info = run_cmd(["bluetoothctl", "info", mac], 10)
-            if MIDI_UUID not in info.lower():
-                continue                      # same name, but not the MIDI side of the pedal
-            r = re.search(r"RSSI: .*?\((-?\d+)\)", info)
-            found.append((int(r.group(1)) if r else -999, mac))
-        return [mac for _, mac in sorted(found, reverse=True)]
-
-    def _save(self, mac):
-        os.makedirs(ETC, exist_ok=True)
-        with open(PEDAL_PATH, "w") as f:
-            json.dump({"mac": mac, "name": PEDAL_NAME, "paired": time.strftime("%Y-%m-%d %H:%M")}, f)
+            mac = m.group(2).upper()
+            r = re.search(r"RSSI: .*?\((-?\d+)\)", m.group(3)) or re.search(r"RSSI: (-?\d+)$", m.group(3).strip())
+            if r:
+                seen[mac] = int(r.group(1))
+            else:
+                seen.setdefault(mac, None)
+        return seen
 
     def _connect(self, mac):
         run_cmd(["bluetoothctl", "trust", mac], 10)
         run_cmd(["bluetoothctl", "connect", mac], 25)
         return self._is_connected(mac)
 
+    # ------------------------------------------------------------- the loop
     def _loop(self):
         while True:
             try:
+                self.wake.clear()
                 self._step()
             except Exception as e:          # never let the pedal thread die
                 log(f"pedal: {e}")
@@ -235,52 +295,124 @@ class Pedal:
     def _step(self):
         if not self._bt_power():
             self.state = "bluetooth starting"
-            time.sleep(2)
+            self.wake.wait(2)
             return
-        mac = self.mac
+        mac = self.target
         if mac and self._is_connected(mac):
             if not self.connected:
-                log(f"pedal connected ({mac})")
-            self.connected, self.state = True, "connected"
-            time.sleep(3)
+                log(f"connected to {self.target_name()} ({mac})")
+            self.connected, self.state, self.misses = True, "connected", 0
+            self.wake.wait(3)
             return
         if self.connected:
-            log("pedal disconnected")
+            log(f"{self.target_name()} disconnected")
         self.connected = False
+        if not mac and self.devices:
+            self.state = "no device selected"
+            self.wake.wait(5)
+            return
         self.state = "connecting" if mac else "searching"
-        run_cmd(["bluetoothctl", "--timeout", "8", "scan", "on"], 15)
+        seen = self._scan(8)
+        if self.target != mac:               # the user picked another device meanwhile
+            return
         if mac:
             if self._connect(mac):
                 self.misses = 0
                 return
         else:
-            for cand in self._find_candidates():
-                log(f"pedal found: {PEDAL_NAME} {cand} – connecting")
-                if self._connect(cand):
+            found = [dict(i, rssi=seen[i["mac"]]) for i in (self._info(m) for m in seen)
+                     if i["midi"] and i["name"] == PEDAL_NAME]
+            for cand in sorted(found, key=lambda i: -(i["rssi"] if i["rssi"] is not None else -999)):
+                log(f"found {PEDAL_NAME} {cand['mac']} – connecting")
+                if self._connect(cand["mac"]):
                     with self.lock:
-                        if self.mac is None:
-                            self.mac = cand
-                            self._save(cand)
-                    log(f"pedal paired and saved: {cand}")
+                        if self.target is None and not self.devices:
+                            self.devices = [{"mac": cand["mac"], "name": cand["name"],
+                                             "added": time.strftime("%Y-%m-%d %H:%M")}]
+                            self.default = self.target = cand["mac"]
+                            self._save()
+                    log(f"{PEDAL_NAME} {cand['mac']} saved as startup device")
                     self.misses = 0
                     return
-        # pedal off or out of range: back off a little so scanning doesn't
-        # keep the shared Wi-Fi/Bluetooth radio busy (hotspot stays smooth)
-        self.misses = getattr(self, "misses", 0) + 1
-        time.sleep(min(2 + 3 * self.misses, 20))
+        # device off or out of range: back off so scanning doesn't keep the
+        # shared Wi-Fi/Bluetooth radio busy (keeps the hotspot smooth)
+        self.misses += 1
+        self.wake.wait(min(2 + 3 * self.misses, 20))
 
-    def forget(self):
+    # --------------------------------------------------------- user actions
+    def scan(self):
+        """Nearby devices for the page: MIDI-capable first, strongest first."""
+        if not self._bt_power():
+            raise ValueError("Bluetooth is starting, try again in a few seconds")
+        seen = self._scan(8)
         with self.lock:
-            mac, self.mac = self.mac, None
-            try:
-                os.remove(PEDAL_PATH)
-            except OSError:
-                pass
-        if mac:
-            run_cmd(["bluetoothctl", "disconnect", mac], 15)
-            run_cmd(["bluetoothctl", "remove", mac], 15)
-        self.connected, self.state = False, "searching"
-        log("pedal forgotten – searching for a JME STOMPBOX")
+            saved = {d["mac"] for d in self.devices}
+        res = []
+        for mac in list(seen) + sorted(saved - set(seen)):   # seen now, plus saved ones (e.g. connected)
+            i = self._info(mac)
+            i.update(rssi=seen.get(mac, i["rssi"]), saved=mac in saved,
+                     startup=mac == self.default, active=mac == self.target)
+            res.append(i)
+        res.sort(key=lambda i: (not i["midi"], -(i["rssi"] if i["rssi"] is not None else -999)))
+        return res
+
+    def connect_now(self, mac, make_default=False, name=None):
+        mac = str(mac).upper()
+        if not MAC_RE.match(mac):
+            raise ValueError("invalid device address")
+        if not name:
+            name = self._info(mac)["name"]
+        with self.lock:
+            if mac not in [d["mac"] for d in self.devices]:
+                self.devices.append({"mac": mac, "name": name, "added": time.strftime("%Y-%m-%d %H:%M")})
+            if make_default or self.default is None:
+                self.default = mac
+            old, self.target = self.target, mac
+            self._save()
+        if old and old != mac:
+            run_cmd(["bluetoothctl", "disconnect", old], 15)
+        self.connected, self.state, self.misses = False, "connecting", 0
+        log(f"switching to {name} ({mac})" + (" – startup device" if mac == self.default else ""))
+        self.wake.set()
+
+    def set_default(self, mac):
+        mac = str(mac).upper()
+        with self.lock:
+            if mac not in [d["mac"] for d in self.devices]:
+                raise ValueError("that device is not saved")
+            self.default = mac
+            if self.target is None:
+                self.target = mac
+            self._save()
+        log(f"startup device: {self.name_of(mac)} ({mac})")
+        self.wake.set()
+
+    def forget(self, mac=None):
+        with self.lock:
+            mac = str(mac or self.target or "").upper()
+            if not mac:
+                return
+            self.devices = [d for d in self.devices if d["mac"] != mac]
+            if self.default == mac:
+                self.default = self.devices[0]["mac"] if self.devices else None
+            was_target = self.target == mac
+            if was_target:
+                self.target = self.default
+            self._save()
+        run_cmd(["bluetoothctl", "disconnect", mac], 15)
+        run_cmd(["bluetoothctl", "remove", mac], 15)
+        if was_target:
+            self.connected, self.misses = False, 0
+            self.state = "connecting" if self.target else "searching"
+        log(f"forgot {mac}" + ("" if self.devices else f" – searching for a {PEDAL_NAME}"))
+        self.wake.set()
+
+    def status(self):
+        with self.lock:
+            devs = [dict(d, startup=d["mac"] == self.default, active=d["mac"] == self.target)
+                    for d in self.devices]
+        return {"name": self.target_name(), "mac": self.target, "state": self.state,
+                "connected": self.connected, "default": self.default, "devices": devs}
 
 
 PEDAL = None
@@ -306,11 +438,17 @@ class Midi:
             out = subprocess.run(["aconnect", "-l"], capture_output=True, text=True, timeout=5).stdout
         except Exception:
             return None
-        ids = re.findall(r"^client (\d+): '" + re.escape(PORT_NAME) + "'", out, re.M)
+        ids = re.findall(r"^client (\d+): '" + re.escape(PEDAL.target_name()) + "'", out, re.M)
         return f"{ids[0]}:0" if len(ids) == 1 else None
 
     def _watch(self):
+        mac = None
         while True:
+            if PEDAL.target != mac:           # another device: its state is unknown again
+                mac = PEDAL.target
+                with self.lock:
+                    self.cc = {cc: on for cc, on in EFFECTS.values()}
+                    self.program = None
             port = self._find_port() if PEDAL.connected else None
             if port != self.port:
                 self.port = port
@@ -807,7 +945,7 @@ class Handler(BaseHTTPRequestHandler):
                 lg = list(LOG)[:15]
             self._json({"version": VERSION,
                         "pedal_connected": MIDI.connected, "midi_port": MIDI.port,
-                        "pedal": {"name": PEDAL_NAME, "mac": PEDAL.mac, "state": PEDAL.state},
+                        "pedal": PEDAL.status(),
                         "program": program, "effects": effects,
                         "pressed": ENGINE.pressed_list(), "pins_low": ENGINE.pins_low(),
                         "gpio": ENGINE.gpio.backend,
@@ -856,8 +994,21 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError("cc and value must be 0-127")
                 MIDI.set_cc(cc, val)
                 self._json({"ok": True, "connected": MIDI.connected})
-            elif self.path == "/api/pedal/forget":
+            elif self.path == "/api/pedal/forget":          # forget the device in use
                 threading.Thread(target=PEDAL.forget, daemon=True).start()
+                self._json({"ok": True})
+            elif self.path == "/api/bt/scan":
+                self._json({"ok": True, "devices": PEDAL.scan()})
+            elif self.path == "/api/bt/connect":
+                d = self._body()
+                PEDAL.connect_now(d["mac"], bool(d.get("startup")), d.get("name"))
+                self._json({"ok": True})
+            elif self.path == "/api/bt/startup":
+                PEDAL.set_default(self._body()["mac"])
+                self._json({"ok": True})
+            elif self.path == "/api/bt/forget":
+                d = self._body()
+                threading.Thread(target=PEDAL.forget, args=(d["mac"],), daemon=True).start()
                 self._json({"ok": True})
             else:
                 self._json({"error": "not found"}, 404)
