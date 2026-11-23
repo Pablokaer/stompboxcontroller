@@ -5,7 +5,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/), versions follow `VERSIO
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+- 3D-printable case for the ESP32-C3 SuperMini with 4 footswitches (`hardware/case/esp32-4-buttons`): 144 × 32 × 43 mm, same 40 mm button spacing as the Pi slim case, 5 mm lower, board cradle with USB-C opening, base + labelled lid + plain lid (STL + SCAD).
 
 ## [1.3.1] – 2026-11-23
 

@@ -25,7 +25,7 @@ buttons behave), see the [main README](../README.md).
 5. [First start](#first-start)
 6. [Using it](#using-it)
 7. [Updating](#updating)
-8. [Factory reset](#factory-reset)
+8. [Case](#case) · [Factory reset](#factory-reset)
 9. [Other ESP32-C3 boards](#other-esp32-c3-boards)
 10. [Building from source](#building-from-source)
 11. [How it works](#how-it-works)
@@ -171,6 +171,24 @@ Differences on the ESP32-C3:
    settings (buttons, devices, Wi-Fi networks) are kept.
 
 The browser flasher also works for updates, but it erases the board's settings.
+
+## Case
+
+A 3D-printable case for this board with 4 footswitches is in
+[`hardware/case/esp32-4-buttons`](../hardware/case/esp32-4-buttons):
+**144 × 32 × 43 mm**, footswitches 40 mm apart in one row (same spacing as the
+Pi's slim case), labelled and plain lids.
+
+- The board lies flat in a cradle between the two middle switches, its USB-C
+  socket at the opening in the back wall (power and updates without opening the case).
+- Lid held by 2 × M3 countersunk screws (8–10 mm) into M3 heat-set inserts in the
+  posts between the switches; alignment lip along the long sides.
+- Solder the switch wires straight to the board (no pin headers), then fix the board
+  in the cradle with a drop of hot glue.
+- The case is only 32 mm wide: put it on non-slip rubber feet (recesses
+  underneath), or glue/velcro it to a pedalboard, so it can't tip when stomped.
+
+![ESP32 case](../hardware/case/esp32-4-buttons/preview.png)
 
 ## Factory reset
 
