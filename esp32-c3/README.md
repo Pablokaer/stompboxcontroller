@@ -190,6 +190,22 @@ Pi's slim case), labelled and plain lids.
 
 ![ESP32 case](../hardware/case/esp32-4-buttons/preview.png)
 
+**Compact version** – [`hardware/case/esp32-4-buttons-compact`](../hardware/case/esp32-4-buttons-compact):
+**133 × 28 × 31 mm** (about 42 % less volume). Uses **16 mm anti-vandal momentary
+push buttons** (stainless, flat head, normally open, M16 thread, solder lugs) instead
+of guitar footswitches, 35 mm apart, 2 mm walls, 3 mm lid.
+
+- Buy buttons with **≤ 20 mm depth behind the panel** and a panel range that includes
+  3 mm (typical: 1–6 mm). Versions with an LED ring work too – leave the LED unwired.
+- Before printing, set the four button values at the top of `case.scad`
+  (`btn_hole`, `btn_nut`, `btn_depth`, `btn_head`) from your buttons' datasheet;
+  the case size follows automatically.
+- Wiring is the same: one lug to the GPIO, the other to GND.
+- Anti-vandal buttons have a short travel (~2 mm) and a firm click – different feel
+  from soft-touch footswitches, but built for being hit.
+
+![Compact ESP32 case](../hardware/case/esp32-4-buttons-compact/preview.png)
+
 ## Factory reset
 
 Hold the board's **BOOT** button for **10 seconds** while it's running. Button
