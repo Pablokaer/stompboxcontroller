@@ -19,7 +19,7 @@ _The settings page on a phone (example data – a second pedal and a WIDI adapte
 > has not yet been tested on a real board.
 > See [esp32-c3/README.md](esp32-c3/README.md).
 
-> **Current version: 1.3.0** – see [CHANGELOG.md](CHANGELOG.md). This README is
+> **Current version: 1.3.1** – see [CHANGELOG.md](CHANGELOG.md). This README is
 > updated with every change to the project (see [Keeping this README current](#keeping-this-readme-current)).
 
 ---

@@ -67,6 +67,7 @@ static void applyHotspotTask(void*) {
   delay(1500);                                   // let the reply reach the phone first
   int ch = WiFi.status() == WL_CONNECTED ? WiFi.channel() : 6;
   WiFi.softAP(apSsid.c_str(), apPass.length() ? apPass.c_str() : nullptr, ch, 0, HOTSPOT_MAX_CLIENTS);
+  WiFi.setTxPower(WIFI_TX_POWER);
   logf("hotspot restarted as %s", apSsid.c_str());
   vTaskDelete(nullptr);
 }
@@ -469,6 +470,7 @@ void netBegin() {
   WiFi.setAutoReconnect(true);
   WiFi.softAPConfig(AP_IP, AP_IP, AP_MASK);
   WiFi.softAP(apSsid.c_str(), apPass.length() ? apPass.c_str() : nullptr, 6, 0, HOTSPOT_MAX_CLIENTS);
+  WiFi.setTxPower(WIFI_TX_POWER);   // see config.h: avoids resets on SuperMini boards
   logf("hotspot %s at 192.168.4.1", apSsid.c_str());
   dns.setErrorReplyCode(DNSReplyCode::NoError);
   dns.start(53, "*", AP_IP);

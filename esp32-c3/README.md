@@ -5,7 +5,7 @@ instead of a Raspberry Pi. Same features, same settings page, same MIDI
 commands – as firmware for a ~€4 board that starts in about 2 seconds.
 
 > **Status: logic tested on a computer, not yet tested on a real board.** The
-> firmware (version 1.3.0) builds cleanly, and its footswitch engine, settings
+> firmware (version 1.3.1) builds cleanly, and its footswitch engine, settings
 > validation and Bluetooth MIDI parser pass 16 unit tests – the same scenarios as
 > the Raspberry Pi version, which is tested on hardware with the pedal. Until
 > someone confirms it on a real ESP32-C3, treat it as a first test release – see
@@ -84,8 +84,12 @@ buttons behave), see the [main README](../README.md).
   pressed or mis-wired switch could stop it from starting. GPIO 8 is also the
   on-board LED, GPIO 9 the BOOT button.
 - Never connect a switch to **5V** or **3V3**.
-- The pin positions in the diagram follow the common SuperMini layout. **Check
-  the labels printed on your board** – clones sometimes differ.
+- **Follow the GPIO labels printed on your board, not the left/right positions in
+  the drawing.** Published SuperMini pinouts disagree on which side is which (top
+  and bottom views are mirror images, and the labels are often printed on the
+  underside), so the drawing's sides may be swapped on your board. The GPIO
+  numbers are what matter: the firmware only cares that FS1 is on the pin labelled
+  3, FS2 on 4, and so on.
 
 **On-board LED (GPIO 8):** on = pedal connected · blinking = searching / connecting.
 
@@ -103,14 +107,24 @@ buttons behave), see the [main README](../README.md).
 
 If the board isn't found: hold the **BOOT** button while plugging the cable in, then try again.
 
-### Option B – esptool (any computer with Python)
+### Option B – Espressif's web flasher (no GitHub Pages needed)
+
+1. Open **https://espressif.github.io/esptool-js/** in Chrome or Edge.
+2. Hold the board's **BOOT** button while plugging in the USB-C cable, then release it.
+3. Click **Connect** and choose the board's port.
+4. Set **Flash Address** to `0x0`, choose `release/stompbox-esp32c3-full.bin`, click **Program**.
+5. When it's done, unplug and plug the board in again (without BOOT).
+
+The same page's **Console** tab shows the board's start-up log – useful if something doesn't work.
+
+### Option C – esptool (any computer with Python)
 
 ```bash
 pip install esptool
 esptool.py --chip esp32c3 write_flash 0x0 release/stompbox-esp32c3-full.bin
 ```
 
-### Option C – PlatformIO (from source)
+### Option D – PlatformIO (from source)
 
 ```bash
 cd esp32-c3
@@ -176,7 +190,7 @@ All board-specific values are in [`include/config.h`](include/config.h):
 | `BOOT_BUTTON_PIN` | `9` | almost never |
 | `HOTSPOT_SSID` / `HOTSPOT_PASSWORD` | `STOMPBOX-CTRL` / `stompbox123` | you want other **defaults** (they can also be changed on the page) |
 
-Then build and flash from source (Option C).
+Then build and flash from source (Option D).
 
 ## Building from source
 
@@ -232,6 +246,8 @@ Bluetooth or Wi-Fi scan from the page never delays the footswitches.
 
 | Problem | What to do |
 |---|---|
+| **New board: USB keeps connecting and disconnecting** | Normal for a board with no firmware: the chip finds nothing to run and restarts about every second, which drops the USB connection. Hold **BOOT** while plugging in – the port then stays put – and flash the firmware. |
+| **Keeps restarting after flashing** | Usually power: use a good cable and a USB port or charger that gives enough current. The firmware already lowers Wi-Fi power (`WIFI_TX_POWER` in `config.h`) because many SuperMini boards reset at full power; try `WIFI_POWER_5dBm` if it still happens. The Console of the web flasher shows the reason for each restart. |
 | Flasher doesn't find the board | Use a data USB-C cable; hold **BOOT** while plugging in; use Chrome/Edge on a computer. |
 | No `STOMPBOX-CTRL` network | Check the board has power (LED blinks while searching for the pedal). Open the serial console (`pio device monitor`) to see the start-up log. |
 | Pedal never connects | Pedal on and close by; not connected to a phone app at the same time. Use **Find devices** on the page. |

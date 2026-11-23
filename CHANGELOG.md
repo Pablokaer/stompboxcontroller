@@ -7,6 +7,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/), versions follow `VERSIO
 
 _Nothing yet._
 
+## [1.3.1] – 2026-11-23
+
+### Changed
+- ESP32-C3: Wi-Fi transmit power limited to 8.5 dBm (`WIFI_TX_POWER` in `config.h`) – many SuperMini boards reset or lose Wi-Fi at full power.
+- ESP32-C3 README: flashing with Espressif's web flasher (works without GitHub Pages), troubleshooting for USB connect/disconnect loops, and a clearer wiring note: the published SuperMini pinouts disagree on left/right, so the GPIO labels printed on the board are what count (diagram caption updated).
+
 ## [1.3.0] – 2026-11-04
 
 Brings the Raspberry Pi and ESP32-C3 versions closer together.

@@ -4,7 +4,7 @@
 // =============================================================================
 #pragma once
 
-#define STOMPBOX_VERSION "1.3.0"
+#define STOMPBOX_VERSION "1.3.1"
 #define STOMPBOX_PLATFORM "esp32c3"
 
 // ---- Footswitch pins (GPIO numbers) ------------------------------------------
@@ -24,6 +24,10 @@
 #define HOTSPOT_SSID "STOMPBOX-CTRL"           // can be changed on the settings page
 #define HOTSPOT_PASSWORD "stompbox123"   // 8-63 characters, "" = open network
 #define HOTSPOT_MAX_CLIENTS 4
+// Wi-Fi transmit power. Many ESP32-C3 SuperMini boards reset (brown-out) or lose
+// Wi-Fi at full power because of their small regulator/antenna. 8.5 dBm still
+// covers a room or a stage. Options: WIFI_POWER_19_5dBm (max) ... WIFI_POWER_2dBm.
+#define WIFI_TX_POWER WIFI_POWER_8_5dBm
 #define MDNS_NAME "stompbox"             // http://stompbox.local on other networks
 
 // ---- Pedal -------------------------------------------------------------------

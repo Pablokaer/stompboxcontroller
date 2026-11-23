@@ -65,5 +65,5 @@
 </g>
 <text x="130" y="200" font-size="12" fill="#222">GND (shared by all switches)</text>
 <text x="450.0" y="536" text-anchor="middle" font-size="12" fill="#555" font-family="system-ui,sans-serif">Solid = signal (one per footswitch) · dashed = ground · power: USB-C 5 V</text>
-<text x="450.0" y="556" text-anchor="middle" font-size="12" fill="#555" font-family="system-ui,sans-serif">Pin positions follow the common SuperMini layout – check the labels printed on your board.</text>
+<text x="450.0" y="556" text-anchor="middle" font-size="12" fill="#555" font-family="system-ui,sans-serif">Left/right positions vary between boards and views (labels are often printed on the underside): follow the GPIO labels on your board.</text>
 </svg>
