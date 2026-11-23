@@ -121,7 +121,7 @@ and a preview image. Every variant fits within 170 mm in length.
 | [`5-buttons`](hardware/case/5-buttons) | 170 × 120 × 41 mm | MOD, DELAY, REVERB (back row) · EQ, GATE (front row, staggered) | ![](hardware/case/5-buttons/preview.png) |
 | [`4-buttons`](hardware/case/4-buttons) | 170 × 75 × 41 mm | MOD, DELAY, REVERB, EQ in one row toward the back; Pi beside them | ![](hardware/case/4-buttons/preview.png) |
 | [`4-buttons-slim`](hardware/case/4-buttons-slim) | 170 × 55 × 48 mm | MOD, DELAY, REVERB, EQ centred on the lid, 40 mm apart; Pi lies underneath | ![](hardware/case/4-buttons-slim/preview.png) |
-| [`esp32-4-buttons-compact`](hardware/case/esp32-4-buttons-compact) | 133 × 28 × 31 mm | **Most compact, ESP32-C3.** 16 mm anti-vandal metal push buttons instead of footswitches, 35 mm apart, 2 mm walls | ![](hardware/case/esp32-4-buttons-compact/preview.png) |
+| [`esp32-4-buttons-compact`](hardware/case/esp32-4-buttons-compact) | 127 × 27 × 36 mm | **Most compact, ESP32-C3.** Conventional footswitches 35 mm apart, 2 mm walls; sized for the board with pin headers up and Dupont jumpers | ![](hardware/case/esp32-4-buttons-compact/preview.png) |
 | [`esp32-4-buttons`](hardware/case/esp32-4-buttons) | 144 × 32 × 43 mm | **ESP32-C3 SuperMini version.** MOD, DELAY, REVERB, EQ 40 mm apart (same as slim); board between the middle switches, USB-C through the back wall | ![](hardware/case/esp32-4-buttons/preview.png) |
 
 Files in each folder:

@@ -191,18 +191,17 @@ Pi's slim case), labelled and plain lids.
 ![ESP32 case](../hardware/case/esp32-4-buttons/preview.png)
 
 **Compact version** – [`hardware/case/esp32-4-buttons-compact`](../hardware/case/esp32-4-buttons-compact):
-**133 × 28 × 31 mm** (about 42 % less volume). Uses **16 mm anti-vandal momentary
-push buttons** (stainless, flat head, normally open, M16 thread, solder lugs) instead
-of guitar footswitches, 35 mm apart, 2 mm walls, 3 mm lid.
+**127 × 27 × 36 mm** (about 34 % less volume), same conventional 12 mm
+footswitches, 35 mm apart, 2 mm walls, 3.5 mm lid. The base is sized only for
+the switches and the board **with its pin headers soldered pointing up** and
+female **Dupont jumpers** on them (no soldering on the board):
 
-- Buy buttons with **≤ 20 mm depth behind the panel** and a panel range that includes
-  3 mm (typical: 1–6 mm). Versions with an LED ring work too – leave the LED unwired.
-- Before printing, set the four button values at the top of `case.scad`
-  (`btn_hole`, `btn_nut`, `btn_depth`, `btn_head`) from your buttons' datasheet;
-  the case size follows automatically.
-- Wiring is the same: one lug to the GPIO, the other to GND.
-- Anti-vandal buttons have a short travel (~2 mm) and a firm click – different feel
-  from soft-touch footswitches, but built for being hit.
+- The board sits in the cradle between the two middle switches, USB-C at the back wall.
+- Above the Dupont plugs there are ~11 mm for the wires to bend over.
+- Solder one end of each jumper wire to the footswitch lug (cut off the other
+  Dupont end), plug the Dupont end onto pin 3/4/5/6 and a GND pin.
+- Before printing, check `sw_depth` (switch depth below the lid incl. lugs, default
+  27 mm) and `sw_nut` at the top of `case.scad`; the height follows automatically.
 
 ![Compact ESP32 case](../hardware/case/esp32-4-buttons-compact/preview.png)
 

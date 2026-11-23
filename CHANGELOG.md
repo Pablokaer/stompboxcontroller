@@ -6,7 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/), versions follow `VERSIO
 ## [Unreleased]
 
 ### Added
-- Compact ESP32-C3 case (`hardware/case/esp32-4-buttons-compact`): 133 × 28 × 31 mm, 16 mm anti-vandal push buttons 35 mm apart, 2 mm walls; button dimensions are parameters.
+- Compact ESP32-C3 case (`hardware/case/esp32-4-buttons-compact`): 127 × 27 × 36 mm, conventional footswitches 35 mm apart, 2 mm walls; base sized for the board with pin headers up and Dupont jumpers (replaces a short-lived anti-vandal-button version).
 - 3D-printable case for the ESP32-C3 SuperMini with 4 footswitches (`hardware/case/esp32-4-buttons`): 144 × 32 × 43 mm, same 40 mm button spacing as the Pi slim case, 5 mm lower, board cradle with USB-C opening, base + labelled lid + plain lid (STL + SCAD).
 
 ## [1.3.1] – 2026-11-23
