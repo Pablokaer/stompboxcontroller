@@ -24,8 +24,61 @@ _The settings page on a phone (example data – a second pedal and a WIDI adapte
 
 ---
 
+## Quick install
+
+Pick **one** controller. The pedal accepts only one Bluetooth connection, so
+don't run a Pi and an ESP32-C3 controller at the same time.
+
+### Raspberry Pi Zero W
+
+1. With [Raspberry Pi Imager](https://www.raspberrypi.com/software/), write
+   **Raspberry Pi OS Lite (32-bit)**, based on Debian 13 "Trixie", to the SD card.
+   In the customisation settings, set:
+   - a hostname, user and password;
+   - your Wi-Fi network and country;
+   - SSH turned on.
+2. Put the card in the Pi, power it on and wait ~3 minutes.
+3. From a computer on the same network, run:
+   ```bash
+   ssh <your-user>@<hostname>.local
+   curl -fsSL https://raw.githubusercontent.com/Pablokaer/stompboxcontroller/main/install.sh | sudo bash
+   ```
+4. Switch the pedal on near the Pi. The Pi connects to it by itself.
+5. Join the Wi-Fi **`STOMPBOX-CTRL`** (password `stompbox123`). The settings page
+   opens by itself; if it doesn't, open `http://192.168.4.1`.
+
+To update later, run `sudo stompbox-update` on the Pi.
+
+Full details, other install options and installer settings:
+[Installing on a new Raspberry Pi](#installing-on-a-new-raspberry-pi).
+Footswitch wiring: [Wiring the footswitches](#wiring-the-footswitches).
+
+### ESP32-C3 SuperMini
+
+1. Download
+   [`stompbox-esp32c3-full.bin`](https://github.com/Pablokaer/stompboxcontroller/raw/main/esp32-c3/release/stompbox-esp32c3-full.bin).
+2. Open **https://espressif.github.io/esptool-js/** in **Chrome or Edge on a computer**.
+   Other browsers can't reach the USB port.
+3. Hold the board's **BOOT** button while plugging in the USB-C data cable, then
+   release it. Click **Connect** and choose the board's port.
+4. Set **Flash Address** to **`0x0`**, choose the `.bin` file and click
+   **Program**. When it's done, unplug the board and plug it in again.
+5. Switch the pedal on near the board. The blue LED blinks while searching and
+   stays on once connected.
+6. Join the Wi-Fi **`STOMPBOX-CTRL`** (password `stompbox123`). The settings page
+   opens by itself; if it doesn't, open `http://192.168.4.1`.
+
+To update later, open `http://192.168.4.1/update` and upload
+`esp32-c3/release/stompbox-esp32c3-app.bin`. Your settings are kept.
+
+Wiring, other flashing options (including a one-click browser flasher once
+GitHub Pages is on) and troubleshooting: [esp32-c3/README.md](esp32-c3/README.md).
+
+---
+
 ## Contents
 
+0. [Quick install](#quick-install) (Raspberry Pi and ESP32-C3)
 1. [What it does](#what-it-does)
 2. [What you need](#what-you-need)
 3. [Wiring the footswitches](#wiring-the-footswitches)
