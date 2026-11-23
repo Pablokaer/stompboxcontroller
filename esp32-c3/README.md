@@ -117,6 +117,15 @@ If the board isn't found: hold the **BOOT** button while plugging the cable in, 
 
 The same page's **Console** tab shows the board's start-up log – useful if something doesn't work.
 
+> **Why `0x0`?** The ESP32-C3's ROM loads the bootloader from flash offset `0x0`
+> (classic ESP32/S2 boards use `0x1000`). The `-full.bin` is a merged image –
+> bootloader at `0x0`, partition table at `0x8000`, OTA data at `0xE000`, app at
+> `0x10000` – so it must start at `0x0`. The `-app.bin` alone goes at `0x10000`.
+>
+> Web flashing needs **Chrome or Edge on a computer**. Firefox, Safari and
+> in-app browsers (including Claude's built-in browser) have no Web Serial port
+> picker – you'd see *"No port selected by the user"*.
+
 ### Option C – esptool (any computer with Python)
 
 ```bash
@@ -283,7 +292,8 @@ Bluetooth or Wi-Fi scan from the page never delays the footswitches.
 | **Keeps restarting after flashing** | Usually power: use a good cable and a USB port or charger that gives enough current. The firmware already lowers Wi-Fi power (`WIFI_TX_POWER` in `config.h`) because many SuperMini boards reset at full power; try `WIFI_POWER_5dBm` if it still happens. The Console of the web flasher shows the reason for each restart. |
 | Flasher doesn't find the board | Use a data USB-C cable; hold **BOOT** while plugging in; use Chrome/Edge on a computer. |
 | No `STOMPBOX-CTRL` network | Check the board has power (LED blinks while searching for the pedal). Open the serial console (`pio device monitor`) to see the start-up log. |
-| Pedal never connects | Pedal on and close by; not connected to a phone app at the same time. Use **Find devices** on the page. |
+| Pedal never connects (LED keeps blinking) | The pedal accepts **only one Bluetooth connection**: switch off the Raspberry Pi controller (or close the phone app) if it's connected. Pedal on and close by. Use **Find devices** on the page. |
+| Flasher says *"No port selected by the user"* | The browser has no serial port picker: use Chrome or Edge on a computer. |
 | A footswitch fires by itself / its dot on the test pad stays lit | That pin reads "pressed": check wiring, or move it to another GPIO on the page. Never use GPIO 2, 8, 9. |
 | Board won't start after wiring the switches | A switch on a boot pin (2, 8, 9) is pressed or shorted – move it. |
 | Page doesn't open by itself | Open `http://192.168.4.1`. |

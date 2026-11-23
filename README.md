@@ -44,6 +44,8 @@ _The settings page on a phone (example data – a second pedal and a WIDI adapte
 16. [Project structure and development](#project-structure-and-development)
 17. [Keeping this README current](#keeping-this-readme-current)
 
+Background, hardware findings, test status and open items: [docs/PROJECT-NOTES.md](docs/PROJECT-NOTES.md).
+
 ---
 
 ## What it does
@@ -313,6 +315,10 @@ the 5-button profile); no holds, no combos.
 
 The Pi keeps a list of **saved devices** and one **startup device**.
 
+> The pedal accepts **only one Bluetooth connection at a time**. While the Pi is
+> connected, a phone app or the ESP32-C3 controller can't connect – and the other
+> way round.
+
 | Term | Meaning |
 |---|---|
 | **Startup device** | Connected automatically every time the Pi starts, and reconnected whenever it comes back in range (e.g. the pedal is switched off and on). |
@@ -427,7 +433,7 @@ Logs: `journalctl -u stompbox-ctrl -f` and `journalctl -u stompbox-ap`.
 | Problem | What to do |
 |---|---|
 | **Pedal never connects** | Make sure it's on and near the Pi. `stomp status` shows *searching* / *connecting*. Check `journalctl -u stompbox-ctrl -f`. If a different JME STOMPBOX was saved before, use **Find devices** on the page and choose **Connect + always at startup** on the right one, or forget the old one. |
-| **"Find devices" doesn't show the pedal** | It must be switched on and close to the Pi. A pedal connected to another device (e.g. a phone app) may not advertise – disconnect it there first. Search again. |
+| **"Find devices" doesn't show the pedal** | It must be switched on and close to the Pi. The pedal takes only one connection: if a phone app or the ESP32-C3 controller is connected, it doesn't advertise – disconnect or switch that off first. Search again. |
 | **Commands sent but nothing changes on the pedal** | The pedal doesn't confirm commands. Check `stomp status` shows a MIDI port. Try `stomp mod toggle` and watch the pedal's MOD light. |
 | **A footswitch fires by itself / test-pad dot always lit** | That pin reads "pressed" with nothing pressed: something connects it to ground (wire, solder bridge, damaged pin). The controller ignores it at start-up, but fix the wiring or move that footswitch to another GPIO on the page. (On the prototype Pi, GPIO22 / pin 15 had this fault.) |
 | **Hotspot doesn't appear** | `systemctl status stompbox-ap`, `journalctl -u stompbox-ap`. Wait for the full boot (~2.5 min). `sudo systemctl restart stompbox-ap`. |
@@ -453,7 +459,7 @@ stompboxcontroller/
 │   ├── case/               5-buttons, 4-buttons, 4-buttons-slim: STL + SCAD + preview
 │   └── wiring/             wiring diagram (PNG + HTML)
 ├── esp32-c3/               ESP32-C3 version: firmware, flasher, wiring, own README
-├── docs/                   MIDI map, images
+├── docs/                   MIDI map, project notes (findings, test status), images
 ├── tests/                  footswitch logic, settings validation, Bluetooth device list
 ├── CHANGELOG.md
 └── AGENTS.md               rules for anyone (human or AI) changing the project

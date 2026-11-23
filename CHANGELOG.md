@@ -6,6 +6,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/), versions follow `VERSIO
 ## [Unreleased]
 
 ### Added
+- `docs/PROJECT-NOTES.md`: project history, findings (pedal takes one Bluetooth connection, hotspot/hostapd, flash at `0x0` and why, flashing browsers, SuperMini pinout), hardware test status and open items.
+- READMEs: one-connection-at-a-time note, explanation of the `0x0` flash address, Chrome/Edge requirement for web flashing.
 - Compact ESP32-C3 case (`hardware/case/esp32-4-buttons-compact`): 127 × 27 × 36 mm, conventional footswitches 35 mm apart, 2 mm walls; base sized for the board with pin headers up and Dupont jumpers (replaces a short-lived anti-vandal-button version).
 - 3D-printable case for the ESP32-C3 SuperMini with 4 footswitches (`hardware/case/esp32-4-buttons`): 144 × 32 × 43 mm, same 40 mm button spacing as the Pi slim case, 5 mm lower, board cradle with USB-C opening, base + labelled lid + plain lid (STL + SCAD).
 
